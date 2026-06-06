@@ -1,0 +1,38 @@
+# 의존성
+node_modules
+
+# 빌드 산출물
+dist
+
+# Prisma 생성 클라이언트
+src/generated
+
+# 환경변수
+.env
+.env.local
+.env.*.local
+
+# 테스트 커버리지
+coverage
+
+# 로그
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea
+.vscode
+*.swp
+
+# Claude Code — 머신 종속 설정
+.mcp.json
+.claude/settings.local.json
+
+# Shrimp task manager 로컬 데이터
+shrimp_data/
