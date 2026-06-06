@@ -57,7 +57,8 @@ docs/
 | `ChangeRequest` | 변경요청 및 검토 결과 |
 
 - `PurchaseOrderVersion`: `@@unique([orderId, version])` + `@@index([orderId, createdAt])` 필수
-- `ChangeRequest.changes`: `Json` 타입, 서비스에서 `Object.keys(changes).length >= 1` 검증
+- `ChangeRequest.changes`: DB는 `Json` 타입이나 API 입력은 `ChangesDto`로 strict 검증. 허용 필드: `quantity`, `productName`, `unitPrice`, `deliveryDate`, `specs`. 허용 외 필드 → 자동 400. 1개 이상 필수. `specs` 포함 시 `@ValidateNested`로 `SpecsDto` 자동 검증
+- `ChangesDto`, `SpecsDto`, `SizeItemDto` 위치: `src/common/dto/` (orders·change-requests 공용)
 - `PurchaseOrder.specs`: **strict DTO** — `color`(string 필수), `sizes`(Array 필수) 만 허용. 그 외 필드는 `forbidNonWhitelisted`로 자동 400. 새 항목 필요 시 `SpecsDto`에 필드 추가. `sum(sizes[].quantity) === quantity` 검증 필수, 불일치 시 `INVALID_SPECS_QUANTITY` (400)
 
 ---
@@ -131,6 +132,8 @@ docs/
 PurchaseOrder:  DRAFT → PENDING → CONFIRMED → IN_PRODUCTION → COMPLETED
 ChangeRequest:  PENDING → APPROVED | REJECTED
 ```
+- 발주서 생성 시 기본 status: `DRAFT` (`@default(DRAFT)`)
+- 생성 시 `status: "PENDING"` 명시 가능 (허용 값: DRAFT | PENDING)
 - 역방향 전이 금지
 - CONFIRMED 미만 발주서에 변경요청 → 400 `ORDER_NOT_CONFIRMED`
 - PENDING 변경요청 존재 시 신규 변경요청 → 409 `CHANGE_REQUEST_ALREADY_PENDING`

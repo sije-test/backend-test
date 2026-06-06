@@ -42,8 +42,8 @@ DRAFT → PENDING → CONFIRMED → IN_PRODUCTION → COMPLETED
                이 상태부터 변경요청 가능
 ```
 
-- `DRAFT`: 주문자 작성 중 (생성 시 초기값)
-- `PENDING`: 소싱팀 검토 대기 (향후 확장용, 현재 MVP에서는 생성 시 DRAFT로 시작)
+- `DRAFT`: 임시저장 (생성 시 기본값, status 미입력 시)
+- `PENDING`: 소싱팀 검토 대기 (생성 시 `status: "PENDING"` 명시 또는 별도 submit)
 - `CONFIRMED`: 소싱팀 확정. 버전1 스냅샷 생성. 변경요청 허용 시작점
 - `IN_PRODUCTION`, `COMPLETED`: 변경요청 계속 허용
 
@@ -172,8 +172,22 @@ model ChangeRequest {
 - `createdAt`: 해당 버전의 effective 시점 (시점 조회 기준)
 
 **ChangeRequest**
-- `changes`: 변경할 필드만 포함. `{ "quantity": 1500, "deliveryDate": "2025-03-25" }` — 1개 이상 필수
+- `changes`: 변경할 필드만 포함. 1개 이상 필수. `ChangesDto`로 허용 필드 고정.
 - `reviewedAt`: 승인/반려 처리 시각
+
+**ChangesDto 허용 필드 (strict)**
+```typescript
+class ChangesDto {
+  quantity?: number        // 양의 정수
+  productName?: string
+  unitPrice?: number       // 양의 소수
+  deliveryDate?: string    // ISO 8601 날짜
+  specs?: SpecsDto         // @ValidateNested — SpecsDto 구조 자동 검증
+}
+```
+- 허용 필드 외 키 → `forbidNonWhitelisted`로 자동 400
+- `specs` 포함 시 `sum(sizes[].quantity) === changes.quantity ?? order.quantity` 검증
+- 새 변경 가능 항목 필요 시 `ChangesDto`에 필드 추가
 
 **specs DTO 구조 (strict)**
 - `color`: string, 필수
@@ -236,8 +250,14 @@ Request Body:
     ]
   },
   "deliveryDate": "2025-03-15",
-  "buyerId": "buyer-001"
+  "buyerId": "buyer-001",
+  "status": "PENDING"
 }
+```
+
+- `status` 생략 시 기본값 `DRAFT` (임시저장)
+- `status: "PENDING"` 명시 시 소싱팀 검토 요청
+- 허용 값: `DRAFT` | `PENDING` (그 외 → 400)
 ```
 
 Response `201`:
@@ -544,6 +564,9 @@ src/
     enums/
       purchase-order-status.enum.ts
       change-request-status.enum.ts
+    dto/
+      specs.dto.ts                    -- SpecsDto, SizeItemDto (orders·change-requests 공용)
+      changes.dto.ts                  -- ChangesDto (허용 변경 필드 정의)
   prisma/
     prisma.module.ts
     prisma.service.ts
@@ -579,7 +602,7 @@ src/
 
 ### 통합 시나리오
 
-- 발주서 생성(DRAFT) → 확정(CONFIRMED + 버전1) → 변경요청 생성 → 승인(버전2) → 이력 조회 2건 → 버전 비교 정상 동작
+- 발주서 생성(status:PENDING 명시) → 확정(CONFIRMED + 버전1) → 변경요청 생성 → 승인(버전2) → 이력 조회 2건 → 버전 비교 정상 동작
 
 ---
 
