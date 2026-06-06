@@ -37,6 +37,7 @@ model PurchaseOrder {
 
   versions       PurchaseOrderVersion[]
   changeRequests ChangeRequest[]
+  statusLogs     OrderStatusLog[]
 
   @@map("purchase_orders")
 }
@@ -79,4 +80,18 @@ model ChangeRequest {
   versions PurchaseOrderVersion[]
 
   @@map("change_requests")
+}
+
+model OrderStatusLog {
+  id          Int                 @id @default(autoincrement())
+  orderId     Int                 @map("order_id")
+  fromStatus  PurchaseOrderStatus @map("from_status")
+  toStatus    PurchaseOrderStatus @map("to_status")
+  changedBy   String              @map("changed_by")
+  createdAt   DateTime            @default(now()) @map("created_at")
+
+  order PurchaseOrder @relation(fields: [orderId], references: [id])
+
+  @@index([orderId, createdAt])
+  @@map("order_status_logs")
 }

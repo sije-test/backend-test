@@ -59,3 +59,19 @@ ALTER TABLE `purchase_order_versions` ADD CONSTRAINT `purchase_order_versions_ch
 
 -- AddForeignKey
 ALTER TABLE `change_requests` ADD CONSTRAINT `change_requests_order_id_fkey` FOREIGN KEY (`order_id`) REFERENCES `purchase_orders`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- CreateTable
+CREATE TABLE `order_status_logs` (
+    `id` INTEGER NOT NULL AUTO_INCREMENT,
+    `order_id` INTEGER NOT NULL,
+    `from_status` ENUM('DRAFT', 'PENDING', 'CONFIRMED', 'IN_PRODUCTION', 'COMPLETED') NOT NULL,
+    `to_status` ENUM('DRAFT', 'PENDING', 'CONFIRMED', 'IN_PRODUCTION', 'COMPLETED') NOT NULL,
+    `changed_by` VARCHAR(191) NOT NULL,
+    `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+
+    INDEX `order_status_logs_order_id_created_at_idx`(`order_id`, `created_at`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- AddForeignKey
+ALTER TABLE `order_status_logs` ADD CONSTRAINT `order_status_logs_order_id_fkey` FOREIGN KEY (`order_id`) REFERENCES `purchase_orders`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
