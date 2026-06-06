@@ -175,6 +175,15 @@ model ChangeRequest {
 - `changes`: 변경할 필드만 포함. `{ "quantity": 1500, "deliveryDate": "2025-03-25" }` — 1개 이상 필수
 - `reviewedAt`: 승인/반려 처리 시각
 
+**specs DTO 구조 (strict)**
+- `color`: string, 필수
+- `sizes`: `Array<{ size: string, quantity: number }>`, 필수
+- `color`, `sizes` 외 필드는 `forbidNonWhitelisted` 에 의해 자동 400 반환
+- 새 스펙 항목이 필요할 때는 SpecsDto에 필드를 추가한다
+
+**specs 검증 규칙**
+- `specs.sizes[].quantity` 합계 === `quantity`, 불일치 시 → `400 INVALID_SPECS_QUANTITY`
+
 ---
 
 ## 5. API 명세
@@ -218,7 +227,14 @@ Request Body:
   "productName": "티셔츠",
   "quantity": 1000,
   "unitPrice": 15000,
-  "specs": { "color": "white", "sizes": ["S", "M", "L"] },
+  "specs": {
+    "color": "white",
+    "sizes": [
+      { "size": "S", "quantity": 300 },
+      { "size": "M", "quantity": 400 },
+      { "size": "L", "quantity": 300 }
+    ]
+  },
   "deliveryDate": "2025-03-15",
   "buyerId": "buyer-001"
 }
@@ -231,7 +247,14 @@ Response `201`:
   "productName": "티셔츠",
   "quantity": 1000,
   "unitPrice": "15000.00",
-  "specs": { "color": "white", "sizes": ["S", "M", "L"] },
+  "specs": {
+    "color": "white",
+    "sizes": [
+      { "size": "S", "quantity": 300 },
+      { "size": "M", "quantity": 400 },
+      { "size": "L", "quantity": 300 }
+    ]
+  },
   "deliveryDate": "2025-03-15",
   "status": "DRAFT",
   "currentVersion": 0,
@@ -392,7 +415,7 @@ Response `200`:
     "productName": "티셔츠",
     "quantity": 1000,
     "unitPrice": "15000.00",
-    "specs": { "color": "white", "sizes": ["S", "M", "L"] },
+    "specs": { "color": "white", "sizes": [{ "size": "S", "quantity": 300 }, { "size": "M", "quantity": 400 }, { "size": "L", "quantity": 300 }] },
     "deliveryDate": "2025-03-15",
     "changedBy": "sourcing-001",
     "reason": "초기 확정",
@@ -404,7 +427,7 @@ Response `200`:
     "productName": "티셔츠",
     "quantity": 1500,
     "unitPrice": "15000.00",
-    "specs": { "color": "white", "sizes": ["S", "M", "L"] },
+    "specs": { "color": "white", "sizes": [{ "size": "S", "quantity": 300 }, { "size": "M", "quantity": 400 }, { "size": "L", "quantity": 300 }] },
     "deliveryDate": "2025-03-25",
     "changedBy": "sourcing-001",
     "reason": "생산 일정 조정으로 수량 및 납기 변경 필요",
@@ -485,6 +508,7 @@ Response `200`:
 | `CHANGES_REQUIRED` | 400 | 변경 항목이 1개 이상 필요합니다. |
 | `INVALID_TIMESTAMP` | 400 | 유효하지 않은 timestamp 형식입니다. |
 | `MISSING_ROLE_HEADER` | 400 | X-User-Role 헤더가 필요합니다. |
+| `INVALID_SPECS_QUANTITY` | 400 | specs.sizes 수량 합계가 총 수량과 일치하지 않습니다. |
 
 ---
 

@@ -58,6 +58,7 @@ docs/
 
 - `PurchaseOrderVersion`: `@@unique([orderId, version])` + `@@index([orderId, createdAt])` 필수
 - `ChangeRequest.changes`: `Json` 타입, 서비스에서 `Object.keys(changes).length >= 1` 검증
+- `PurchaseOrder.specs`: **strict DTO** — `color`(string 필수), `sizes`(Array 필수) 만 허용. 그 외 필드는 `forbidNonWhitelisted`로 자동 400. 새 항목 필요 시 `SpecsDto`에 필드 추가. `sum(sizes[].quantity) === quantity` 검증 필수, 불일치 시 `INVALID_SPECS_QUANTITY` (400)
 
 ---
 
