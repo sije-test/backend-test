@@ -66,8 +66,8 @@ PENDING → APPROVED (발주서 즉시 반영 + 버전 스냅샷 생성)
 
 | 작업 | 처리 |
 |------|------|
-| 발주서 확정 | 버전1 스냅샷 insert (트랜잭션) |
-| 변경요청 승인 | 발주서 업데이트 + 버전 스냅샷 insert + 변경요청 상태 변경 (단일 트랜잭션) |
+| 발주서 확정 | 버전1 스냅샷 insert + `OrderStatusLog` insert (단일 트랜잭션) |
+| 변경요청 승인 | 발주서 업데이트 + 버전 스냅샷 insert + 변경요청 상태 변경 + `OrderStatusLog` insert (단일 트랜잭션) |
 | 특정 버전 조회 | `(orderId, version)` 인덱스 조회 |
 | 특정 시점 조회 | `WHERE orderId = ? AND createdAt <= ? ORDER BY createdAt DESC LIMIT 1` |
 | 버전 비교 | 두 스냅샷 조회 후 서비스 레이어에서 필드별 diff 연산 |
@@ -119,6 +119,7 @@ model PurchaseOrder {
 
   versions       PurchaseOrderVersion[]
   changeRequests ChangeRequest[]
+  statusLogs     OrderStatusLog[]
 }
 
 model PurchaseOrderVersion {
@@ -157,6 +158,20 @@ model ChangeRequest {
   order    PurchaseOrder          @relation(fields: [orderId], references: [id])
   versions PurchaseOrderVersion[]
 }
+
+model OrderStatusLog {
+  id         Int                 @id @default(autoincrement())
+  orderId    Int                 @map("order_id")
+  fromStatus PurchaseOrderStatus @map("from_status")
+  toStatus   PurchaseOrderStatus @map("to_status")
+  changedBy  String              @map("changed_by")
+  createdAt  DateTime            @default(now()) @map("created_at")
+
+  order PurchaseOrder @relation(fields: [orderId], references: [id])
+
+  @@index([orderId, createdAt])
+  @@map("order_status_logs")
+}
 ```
 
 ### 핵심 필드 설명
@@ -174,6 +189,12 @@ model ChangeRequest {
 **ChangeRequest**
 - `changes`: 변경할 필드만 포함. 1개 이상 필수. `ChangesDto`로 허용 필드 고정.
 - `reviewedAt`: 승인/반려 처리 시각
+
+**OrderStatusLog**
+- `fromStatus` / `toStatus`: 전이 직전·직후 상태. `fromStatus`는 최초 생성 로그 없음 — 상태 전이 시점마다 1행 insert
+- `changedBy`: 상태를 변경한 userId (X-User-Id 헤더값)
+- `createdAt`: 상태 전이 발생 시각
+- 모든 상태 전이 시 insert. 트랜잭션이 있는 경우(confirm, approve) 트랜잭션 내에서 함께 처리
 
 **ChangesDto 허용 필드 (strict)**
 ```typescript
@@ -510,6 +531,32 @@ Response `200`:
 
 에러:
 - from 또는 to 버전 존재하지 않음 → `404 VERSION_NOT_FOUND`
+
+---
+
+#### `GET /orders/:id/status-history` — 상태 변경 이력 조회
+
+권한: BUYER, SOURCING, MANUFACTURER
+
+Response `200`:
+```json
+[
+  {
+    "id": 1,
+    "orderId": 1,
+    "fromStatus": "PENDING",
+    "toStatus": "CONFIRMED",
+    "changedBy": "sourcing-001",
+    "createdAt": "2025-02-10T00:00:00.000Z"
+  }
+]
+```
+
+- `createdAt` ASC 정렬
+- 결과 없음(이력 0건)은 빈 배열 반환
+
+에러:
+- 존재하지 않는 발주서 → `404 ORDER_NOT_FOUND`
 
 ---
 
