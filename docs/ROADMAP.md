@@ -30,6 +30,7 @@
     - model `PurchaseOrder` — `id`, `productName`, `quantity`, `unitPrice Decimal @db.Decimal(12,2)`, `specs Json`, `deliveryDate DateTime @db.Date`, `status`, `currentVersion Int @default(0)`, `buyerId`, `createdAt`, `updatedAt @updatedAt`, 관계 필드
     - model `PurchaseOrderVersion` — `id`, `orderId`, `version`, `productName`, `quantity`, `unitPrice`, `specs`, `deliveryDate`, `changedBy`, `reason`, `changeRequestId Int?`, `createdAt`, 관계 필드, `@@unique([orderId, version])`, `@@index([orderId, createdAt])`
     - model `ChangeRequest` — `id`, `orderId`, `requestedBy`, `reason`, `changes Json`, `status`, `reviewedBy String?`, `reviewComment String?`, `createdAt`, `reviewedAt DateTime?`, 관계 필드
+    - model `OrderStatusLog` — `id`, `orderId @map("order_id")`, `fromStatus @map("from_status")`, `toStatus @map("to_status")`, `changedBy @map("changed_by")`, `createdAt @map("created_at")`, 관계 필드, `@@index([orderId, createdAt])`, `@@map("order_status_logs")`
   - [ ] 마이그레이션 실행 및 클라이언트 생성
     ```bash
     yarn prisma migrate dev --name init-schema
@@ -37,7 +38,7 @@
     ```
   - [ ] `src/generated/prisma/client` 경로에 클라이언트가 생성되었는지 확인
 
-- **완료 기준**: `yarn prisma migrate dev` 성공, `src/generated/prisma/client` 디렉터리에 `PrismaClient` 타입이 `PurchaseOrder`, `PurchaseOrderVersion`, `ChangeRequest` 모델을 모두 포함함.
+- **완료 기준**: `yarn prisma migrate dev` 성공, `src/generated/prisma/client` 디렉터리에 `PrismaClient` 타입이 `PurchaseOrder`, `PurchaseOrderVersion`, `ChangeRequest`, `OrderStatusLog` 모델을 모두 포함함.
 - **검증**:
   ```bash
   yarn build
@@ -147,7 +148,7 @@
     - `findOrderById(id)`: 존재하지 않으면 `ORDER_NOT_FOUND(404)` throw
     - `confirmOrder(id, userId)`: 단일 트랜잭션
       - status가 PENDING이 아니면 `INVALID_STATUS_TRANSITION(400)` throw
-      - `prisma.$transaction`: status → CONFIRMED, currentVersion → 1, `purchaseOrderVersion.create` (version=1, changeRequestId=null, reason="초기 확정", changedBy=userId)
+      - `prisma.$transaction`: status → CONFIRMED, currentVersion → 1, `purchaseOrderVersion.create` (version=1, changeRequestId=null, reason="초기 확정", changedBy=userId), `orderStatusLog.create` (fromStatus=PENDING, toStatus=CONFIRMED, changedBy=userId)
       - 업데이트된 발주서 반환
   - [ ] `src/orders/orders.module.ts` 생성 — `PrismaModule`, `CommonModule` import
 
@@ -155,7 +156,7 @@
 - **테스트**:
   - [ ] `createOrder` 정상 케이스 — 발주서 생성, specs 합계 불일치 400
   - [ ] `findOrderById` 존재하지 않는 id → 404
-  - [ ] `confirmOrder` 정상 케이스 — 트랜잭션 호출, 버전1 스냅샷 생성 검증
+  - [ ] `confirmOrder` 정상 케이스 — 트랜잭션 호출, 버전1 스냅샷 생성 및 `OrderStatusLog` 1행 insert 검증
   - [ ] `confirmOrder` PENDING 아닌 상태 → 400 INVALID_STATUS_TRANSITION
   ```bash
   yarn test --testPathPattern=orders.service
@@ -213,6 +214,7 @@
         1. `changeRequest.update` → status APPROVED, reviewedBy=userId, reviewComment, reviewedAt=now()
         2. `purchaseOrder.update` → changes 필드 반영, currentVersion +1
         3. `purchaseOrderVersion.create` → 버전 스냅샷 insert (changeRequestId=requestId, changedBy=userId, reason=변경요청.reason)
+        4. `orderStatusLog.create` → fromStatus=기존 status, toStatus=변경 후 status, changedBy=userId (상태 전이 발생 시에만 insert)
       - 업데이트된 변경요청 반환
     - `rejectChangeRequest(orderId, requestId, dto, userId)`:
       - 변경요청 조회 — 없으면 `CHANGE_REQUEST_NOT_FOUND(404)`
@@ -228,7 +230,7 @@
   - [ ] `createChangeRequest` PENDING 중복 → 409 CHANGE_REQUEST_ALREADY_PENDING
   - [ ] `createChangeRequest` `changes: {}` → 400 CHANGES_REQUIRED
   - [ ] `createChangeRequest` specs 포함 시 sizes 합계 불일치 → 400 INVALID_SPECS_QUANTITY
-  - [ ] `approveChangeRequest` 정상 케이스 — 트랜잭션 3단계 모두 호출, currentVersion +1, 스냅샷 1행 생성
+  - [ ] `approveChangeRequest` 정상 케이스 — 트랜잭션 4단계 모두 호출, currentVersion +1, 스냅샷 1행 생성, `OrderStatusLog` 1행 insert 검증
   - [ ] `approveChangeRequest` PENDING 아닌 변경요청 → 400 CHANGE_REQUEST_NOT_PENDING
   - [ ] `rejectChangeRequest` 정상 케이스 — 발주서 불변 확인
   - [ ] `rejectChangeRequest` PENDING 아닌 변경요청 → 400 CHANGE_REQUEST_NOT_PENDING
@@ -265,7 +267,7 @@
 
 ### 5-1. history — Service
 
-- **목적**: 이력 조회 4종(이력 목록 / 특정 버전 / 특정 시점 / 버전 비교) 비즈니스 로직을 구현한다.
+- **목적**: 이력 조회 4종(이력 목록 / 특정 버전 / 특정 시점 / 버전 비교) + 상태 변경 이력 조회 비즈니스 로직을 구현한다.
 - **브랜치**: `feature/history`
 - **작업 내용**:
   - [ ] `src/history/history.service.ts` 생성
@@ -285,8 +287,12 @@
       - 비교 대상 필드: `productName`, `quantity`, `unitPrice`, `specs`, `deliveryDate`
       - 값이 다른 필드만 `{ field, before, after }[]` 반환
       - 동일 버전 비교 시 `diff: []` 반환
+    - `getStatusHistory(orderId)`:
+      - 발주서 존재 여부 확인 (ORDER_NOT_FOUND 위임)
+      - `orderStatusLog.findMany({ where: { orderId }, orderBy: { createdAt: 'asc' } })`
+      - 결과 없음(이력 0건)은 빈 배열 반환
 
-- **완료 기준**: 4종 조회가 모두 정확한 데이터를 반환하고, 없는 버전은 404를 반환함.
+- **완료 기준**: 5종 조회가 모두 정확한 데이터를 반환하고, 없는 버전은 404를 반환함.
 - **테스트**:
   - [ ] `getHistory` 정상 케이스 — 버전 2건 createdAt ASC 정렬
   - [ ] `getVersionSnapshot` version=2 → 정확한 스냅샷 반환
@@ -297,25 +303,29 @@
   - [ ] `compareVersions` v1 vs v3 → diff에 변경된 필드만 포함
   - [ ] `compareVersions` v1 vs v1 → `diff: []`
   - [ ] `compareVersions` 없는 버전 포함 → 404 VERSION_NOT_FOUND
+  - [ ] `getStatusHistory` 정상 케이스 — createdAt ASC 정렬, `OrderStatusLog` 행 수 일치
+  - [ ] `getStatusHistory` 이력 0건 → 빈 배열 반환
+  - [ ] `getStatusHistory` 존재하지 않는 발주서 → 404 ORDER_NOT_FOUND
   ```bash
   yarn test --testPathPattern=history.service
   ```
 
 ### 5-2. history — Controller
 
-- **목적**: 이력 조회 API 4종을 Controller로 노출한다.
+- **목적**: 이력 조회 API 5종을 Controller로 노출한다.
 - **작업 내용**:
   - [ ] `src/history/history.controller.ts` 생성
     - `GET /orders/:id/history` — 전체 역할 허용
     - `GET /orders/:id/versions/:version` — 전체 역할 허용, `:version`은 `ParseIntPipe`로 정수 변환
     - `GET /orders/:id/at` — 전체 역할 허용, `timestamp` query param 필수
     - `GET /orders/:id/compare` — 전체 역할 허용, `from`, `to` query param 필수 (`ParseIntPipe`)
+    - `GET /orders/:id/status-history` — 전체 역할 허용, createdAt ASC 정렬, 이력 0건이면 빈 배열 반환
     - 모든 응답 `{ success: true, data: ... }` 래핑
     - `@ApiTags('history')` Swagger 어노테이션
   - [ ] `src/history/history.module.ts` 생성
   - [ ] `AppModule`에 `HistoryModule` import
 
-- **완료 기준**: Swagger UI에서 4개 엔드포인트 확인.
+- **완료 기준**: Swagger UI에서 5개 엔드포인트 확인.
 - **테스트**:
   - [ ] `GET /orders/:id/history` → 200, 버전 배열 반환
   - [ ] `GET /orders/:id/versions/:version` 존재하는 버전 → 200
@@ -323,6 +333,9 @@
   - [ ] `GET /orders/:id/at?timestamp=...` 유효한 시점 → 200
   - [ ] `GET /orders/:id/at?timestamp=invalid` → 400 INVALID_TIMESTAMP
   - [ ] `GET /orders/:id/compare?from=1&to=3` → 200, diff 배열
+  - [ ] `GET /orders/:id/status-history` → 200, 상태 로그 배열 반환 (createdAt ASC)
+  - [ ] `GET /orders/:id/status-history` 이력 0건 → 200, 빈 배열
+  - [ ] `GET /orders/:id/status-history` 없는 발주서 → 404 ORDER_NOT_FOUND
   ```bash
   yarn test --testPathPattern=history.controller
   ```
@@ -370,6 +383,8 @@
     - 시나리오 7: 없는 버전 조회 → 404 VERSION_NOT_FOUND
     - 시나리오 8: 동일 버전 비교 → `diff: []`
     - 시나리오 9: 승인 트랜잭션 롤백 동작 확인 (mock으로 중간 실패 주입)
+    - 시나리오 10: 확정 → 승인 후 `GET /orders/:id/status-history` → `OrderStatusLog` 행 수 및 fromStatus/toStatus 값 검증
+    - 시나리오 10-1: 변경 이력 없는 발주서의 `GET /orders/:id/status-history` → 빈 배열 반환
   - [ ] 각 E2E 테스트는 독립적으로 실행될 수 있도록 테스트 전 DB 초기화 처리
 
 - **완료 기준**: `yarn test:e2e` 전체 통과.
@@ -405,7 +420,7 @@
 - [ ] Swagger UI 확인: http://localhost:3000/api
   - orders 태그: POST /orders, GET /orders/:id, PATCH /orders/:id/confirm (3개)
   - change-requests 태그: POST, GET, PATCH approve, PATCH reject (4개)
-  - history 태그: GET history, GET versions/:version, GET at, GET compare (4개)
+  - history 태그: GET history, GET versions/:version, GET at, GET compare, GET status-history (5개)
 - [ ] Definition of Done 항목 전체 체크
   - [ ] 이력 조회 4종 API 모두 동작
   - [ ] 승인 트랜잭션 롤백 동작 확인
