@@ -34,25 +34,9 @@ export class ChangeRequestsService {
   ) {
     const order = await this.ordersService.findOrderById(orderId);
 
-    if (order.buyerId !== userId) {
-      this.logger.warn(
-        `변경요청 생성 불가 — 생성자 아님 orderId=${orderId} buyerId=${order.buyerId} userId=${userId}`,
-      );
-      businessError('NOT_ORDER_OWNER');
-    }
-
-    if (
-      STATUS_RANK[order.status] < STATUS_RANK[PurchaseOrderStatus.CONFIRMED]
-    ) {
-      this.logger.warn(
-        `변경요청 생성 불가 — 확정 전 상태 orderId=${orderId} status=${order.status}`,
-      );
-      businessError('ORDER_NOT_CONFIRMED');
-    }
-
-    if (Object.keys(dto.changes).length === 0) {
-      businessError('CHANGES_REQUIRED');
-    }
+    this.assertOrderOwner(order, userId);
+    this.assertOrderConfirmed(order, '변경요청 생성 불가 — 확정 전 상태');
+    this.assertChangesPresent(dto.changes as Record<string, unknown>);
 
     if (dto.changes.specs) {
       validateSpecsQuantity(
@@ -122,33 +106,11 @@ export class ChangeRequestsService {
     dto: ReviewChangeRequestDto,
     userId: string,
   ) {
-    const changeRequest = await this.prisma.changeRequest.findFirst({
-      where: { id: requestId, orderId },
-    });
-    if (!changeRequest) {
-      this.logger.warn(
-        `변경요청 없음 requestId=${requestId} orderId=${orderId}`,
-      );
-      businessError('CHANGE_REQUEST_NOT_FOUND');
-    }
-
-    if (changeRequest.status !== ChangeRequestStatus.PENDING) {
-      this.logger.warn(
-        `승인 불가 — PENDING 아님 requestId=${requestId} status=${changeRequest.status}`,
-      );
-      businessError('CHANGE_REQUEST_NOT_PENDING');
-    }
+    const changeRequest = await this.loadPendingChangeRequest(requestId, orderId);
 
     const order = await this.ordersService.findOrderById(orderId);
 
-    if (
-      STATUS_RANK[order.status] < STATUS_RANK[PurchaseOrderStatus.CONFIRMED]
-    ) {
-      this.logger.warn(
-        `승인 불가 — 확정 전 상태 orderId=${orderId} status=${order.status}`,
-      );
-      businessError('ORDER_NOT_CONFIRMED');
-    }
+    this.assertOrderConfirmed(order, '승인 불가 — 확정 전 상태');
 
     const changes = changeRequest.changes as Record<string, unknown>;
 
@@ -236,22 +198,7 @@ export class ChangeRequestsService {
     dto: ReviewChangeRequestDto,
     userId: string,
   ) {
-    const changeRequest = await this.prisma.changeRequest.findFirst({
-      where: { id: requestId, orderId },
-    });
-    if (!changeRequest) {
-      this.logger.warn(
-        `변경요청 없음 requestId=${requestId} orderId=${orderId}`,
-      );
-      businessError('CHANGE_REQUEST_NOT_FOUND');
-    }
-
-    if (changeRequest.status !== ChangeRequestStatus.PENDING) {
-      this.logger.warn(
-        `반려 불가 — PENDING 아님 requestId=${requestId} status=${changeRequest.status}`,
-      );
-      businessError('CHANGE_REQUEST_NOT_PENDING');
-    }
+    const changeRequest = await this.loadPendingChangeRequest(requestId, orderId);
 
     const updated = await this.prisma.changeRequest.update({
       where: { id: requestId },
@@ -267,5 +214,57 @@ export class ChangeRequestsService {
       `변경요청 반려 완료 requestId=${requestId} orderId=${orderId} userId=${userId}`,
     );
     return updated;
+  }
+
+  /** 요청자가 발주서 생성자인지 검증한다. */
+  private assertOrderOwner(
+    order: { id: number; buyerId: string },
+    userId: string,
+  ): void {
+    if (order.buyerId !== userId) {
+      this.logger.warn(
+        `변경요청 생성 불가 — 생성자 아님 orderId=${order.id} buyerId=${order.buyerId} userId=${userId}`,
+      );
+      businessError('NOT_ORDER_OWNER');
+    }
+  }
+
+  /** 발주서가 CONFIRMED 이상 상태인지 검증한다. context는 warn 로그 접두사로 사용된다. */
+  private assertOrderConfirmed(
+    order: { id: number; status: string },
+    context: string,
+  ): void {
+    if (
+      STATUS_RANK[order.status as PurchaseOrderStatus] <
+      STATUS_RANK[PurchaseOrderStatus.CONFIRMED]
+    ) {
+      this.logger.warn(`${context} orderId=${order.id} status=${order.status}`);
+      businessError('ORDER_NOT_CONFIRMED');
+    }
+  }
+
+  /** 변경요청 DTO에 변경 필드가 하나 이상 있는지 검증한다. */
+  private assertChangesPresent(changes: Record<string, unknown>): void {
+    if (Object.keys(changes).length === 0) {
+      businessError('CHANGES_REQUIRED');
+    }
+  }
+
+  /** 변경요청을 조회하고 PENDING 상태인지 검증한다. 없거나 PENDING이 아니면 각각 404·409를 던진다. */
+  private async loadPendingChangeRequest(requestId: number, orderId: number) {
+    const changeRequest = await this.prisma.changeRequest.findFirst({
+      where: { id: requestId, orderId },
+    });
+    if (!changeRequest) {
+      this.logger.warn(`변경요청 없음 requestId=${requestId} orderId=${orderId}`);
+      businessError('CHANGE_REQUEST_NOT_FOUND');
+    }
+    if (changeRequest.status !== ChangeRequestStatus.PENDING) {
+      this.logger.warn(
+        `처리 불가 — PENDING 아님 requestId=${requestId} status=${changeRequest.status}`,
+      );
+      businessError('CHANGE_REQUEST_NOT_PENDING');
+    }
+    return changeRequest;
   }
 }

@@ -46,11 +46,11 @@
 
 - **목적**: Prisma 구조 변경 없이 서비스 책임을 분리한다.
 - **작업 내용**:
-  - [ ] **F** — `ChangeRequestsService.assertOrderConfirmed(order)` private 추출  
+  - [x] **F** — `ChangeRequestsService.assertOrderConfirmed(order)` private 추출  
     `createChangeRequest:41`·`approveChangeRequest:135` 중복 제거
-  - [ ] **C** — `ChangeRequestsService.loadPendingChangeRequest(orderId, requestId)` private 추출  
+  - [x] **C** — `ChangeRequestsService.loadPendingChangeRequest(orderId, requestId)` private 추출  
     `findFirst → CHANGE_REQUEST_NOT_FOUND → CHANGE_REQUEST_NOT_PENDING` 블록 중복 제거
-  - [ ] **A** — `createChangeRequest` 오케스트레이션 thin하게  
+  - [x] **A** — `createChangeRequest` 오케스트레이션 thin하게  
     - `assertOrderOwner(order, userId)` — NOT_ORDER_OWNER  
     - `assertOrderConfirmed(order)` — (F 재사용)  
     - `assertChangesPresent(changes)` — CHANGES_REQUIRED  
