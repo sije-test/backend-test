@@ -6,7 +6,7 @@ import { validateSpecsQuantity } from './validate-specs-quantity.helper';
 function makeSpecs(sizes: { size: string; quantity: number }[]): SpecsDto {
   const dto = new SpecsDto();
   dto.color = 'RED';
-  dto.sizes = sizes as any;
+  dto.sizes = sizes;
   return dto;
 }
 

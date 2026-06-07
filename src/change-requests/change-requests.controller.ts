@@ -1,4 +1,14 @@
-import { Body, Controller, Get, HttpCode, Param, ParseIntPipe, Patch, Post, Req } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  Param,
+  ParseIntPipe,
+  Patch,
+  Post,
+  Req,
+} from '@nestjs/common';
 import { ApiHeader, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -27,7 +37,11 @@ export class ChangeRequestsController {
     @Body() dto: CreateChangeRequestDto,
     @Req() req: Request,
   ) {
-    return this.changeRequestsService.createChangeRequest(id, dto, req.userId ?? '');
+    return this.changeRequestsService.createChangeRequest(
+      id,
+      dto,
+      req.userId ?? '',
+    );
   }
 
   @Get(':id/change-requests')
@@ -53,7 +67,12 @@ export class ChangeRequestsController {
     @Body() dto: ReviewChangeRequestDto,
     @Req() req: Request,
   ) {
-    return this.changeRequestsService.approveChangeRequest(id, requestId, dto, req.userId ?? '');
+    return this.changeRequestsService.approveChangeRequest(
+      id,
+      requestId,
+      dto,
+      req.userId ?? '',
+    );
   }
 
   @Patch(':id/change-requests/:requestId/reject')
@@ -69,6 +88,11 @@ export class ChangeRequestsController {
     @Body() dto: ReviewChangeRequestDto,
     @Req() req: Request,
   ) {
-    return this.changeRequestsService.rejectChangeRequest(id, requestId, dto, req.userId ?? '');
+    return this.changeRequestsService.rejectChangeRequest(
+      id,
+      requestId,
+      dto,
+      req.userId ?? '',
+    );
   }
 }

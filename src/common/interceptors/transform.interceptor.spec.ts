@@ -7,9 +7,11 @@ describe('TransformInterceptor', () => {
     const mockCallHandler = { handle: () => of({ id: 1 }) };
     const mockContext = {} as any;
 
-    interceptor.intercept(mockContext, mockCallHandler as any).subscribe((result) => {
-      expect(result).toEqual({ success: true, data: { id: 1 } });
-      done();
-    });
+    interceptor
+      .intercept(mockContext, mockCallHandler as any)
+      .subscribe((result) => {
+        expect(result).toEqual({ success: true, data: { id: 1 } });
+        done();
+      });
   });
 });

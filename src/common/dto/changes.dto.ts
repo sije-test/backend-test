@@ -30,7 +30,10 @@ export class ChangesDto {
   unitPrice?: number;
 
   @IsOptional()
-  @IsDateString({}, { message: 'deliveryDate는 ISO 8601 날짜 형식이어야 합니다.' })
+  @IsDateString(
+    {},
+    { message: 'deliveryDate는 ISO 8601 날짜 형식이어야 합니다.' },
+  )
   deliveryDate?: string;
 
   @IsOptional()

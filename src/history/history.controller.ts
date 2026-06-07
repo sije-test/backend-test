@@ -1,5 +1,11 @@
 import { Controller, Get, Param, ParseIntPipe, Query } from '@nestjs/common';
-import { ApiHeader, ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiHeader,
+  ApiOperation,
+  ApiQuery,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { Roles } from '../common/decorators/roles.decorator';
 import { Role } from '../common/enums/role.enum';
 import { HistoryService } from './history.service';
@@ -35,7 +41,11 @@ export class HistoryController {
   @Get(':id/at')
   @Roles(Role.BUYER, Role.SOURCING, Role.MANUFACTURER)
   @ApiOperation({ summary: '특정 시점의 스냅샷 조회' })
-  @ApiQuery({ name: 'timestamp', required: true, description: '조회 기준 시점 (ISO 8601)' })
+  @ApiQuery({
+    name: 'timestamp',
+    required: true,
+    description: '조회 기준 시점 (ISO 8601)',
+  })
   @ApiResponse({ status: 200, description: '조회 성공' })
   @ApiResponse({ status: 400, description: '잘못된 timestamp 형식' })
   @ApiResponse({ status: 404, description: '해당 시점 이전 버전 없음' })

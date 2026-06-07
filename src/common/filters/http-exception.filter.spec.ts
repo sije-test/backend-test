@@ -64,7 +64,10 @@ describe('HttpExceptionFilter', () => {
 
   it('ValidationPipe BadRequestException의 message 배열은 join되어 응답한다', () => {
     const exception = new BadRequestException({
-      message: ['quantity must be an integer', 'productName should not be empty'],
+      message: [
+        'quantity must be an integer',
+        'productName should not be empty',
+      ],
       error: 'Bad Request',
       statusCode: 400,
     });

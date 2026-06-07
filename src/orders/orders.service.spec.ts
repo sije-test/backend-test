@@ -3,30 +3,24 @@ import { PurchaseOrderStatus } from '../common/enums/purchase-order-status.enum'
 import { OrdersService } from './orders.service';
 import { SpecsDto } from '../common/dto/specs.dto';
 import { CreateOrderDto } from './dto/create-order.dto';
-import { Prisma } from '../generated/prisma/client';
-
-jest.mock('../prisma/prisma.service');
 
 const makeSizesDto = (size: string, qty: number) => ({ size, quantity: qty });
-const makeSpecs = (color: string, sizes: { size: string; quantity: number }[]): SpecsDto =>
-  ({ color, sizes } as SpecsDto);
+const makeSpecs = (
+  color: string,
+  sizes: { size: string; quantity: number }[],
+): SpecsDto => ({ color, sizes });
 
 describe('OrdersService', () => {
-  let mockPrisma: jest.Mocked<any>;
+  let mockOrdersRepository: jest.Mocked<any>;
   let service: OrdersService;
 
   beforeEach(() => {
-    mockPrisma = {
-      purchaseOrder: {
-        create: jest.fn(),
-        findUnique: jest.fn(),
-        update: jest.fn(),
-      },
-      purchaseOrderVersion: { create: jest.fn() },
-      orderStatusLog: { create: jest.fn() },
-      $transaction: jest.fn((cb: (tx: any) => Promise<any>) => cb(mockPrisma)),
-    } as unknown as any;
-    service = new OrdersService(mockPrisma);
+    mockOrdersRepository = {
+      create: jest.fn(),
+      findById: jest.fn(),
+      confirmWithSnapshot: jest.fn(),
+    };
+    service = new OrdersService(mockOrdersRepository);
   });
 
   describe('createOrder', () => {
@@ -41,15 +35,15 @@ describe('OrdersService', () => {
         status: PurchaseOrderStatus.PENDING,
       };
       const expected = { id: 1, ...dto };
-      mockPrisma.purchaseOrder.create.mockResolvedValue(expected);
+      mockOrdersRepository.create.mockResolvedValue(expected);
 
       const result = await service.createOrder(dto);
 
-      expect(mockPrisma.purchaseOrder.create).toHaveBeenCalledTimes(1);
+      expect(mockOrdersRepository.create).toHaveBeenCalledTimes(1);
       expect(result).toEqual(expected);
     });
 
-    it('status를 생략하면 prisma.create에 status: DRAFT로 전달한다', async () => {
+    it('status를 생략하면 repo.create에 status: DRAFT로 전달한다', async () => {
       const dto: CreateOrderDto = {
         productName: '테스트 상품',
         quantity: 10,
@@ -58,18 +52,16 @@ describe('OrdersService', () => {
         deliveryDate: '2025-12-01',
         buyerId: 'buyer-1',
       };
-      mockPrisma.purchaseOrder.create.mockResolvedValue({ id: 1 });
+      mockOrdersRepository.create.mockResolvedValue({ id: 1 });
 
       await service.createOrder(dto);
 
-      expect(mockPrisma.purchaseOrder.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({ status: PurchaseOrderStatus.DRAFT }),
-        }),
+      expect(mockOrdersRepository.create).toHaveBeenCalledWith(
+        expect.objectContaining({ status: PurchaseOrderStatus.DRAFT }),
       );
     });
 
-    it('status: PENDING을 명시하면 prisma.create에 status: PENDING으로 전달한다', async () => {
+    it('status: PENDING을 명시하면 repo.create에 status: PENDING으로 전달한다', async () => {
       const dto: CreateOrderDto = {
         productName: '테스트 상품',
         quantity: 10,
@@ -79,14 +71,12 @@ describe('OrdersService', () => {
         buyerId: 'buyer-1',
         status: PurchaseOrderStatus.PENDING,
       };
-      mockPrisma.purchaseOrder.create.mockResolvedValue({ id: 1 });
+      mockOrdersRepository.create.mockResolvedValue({ id: 1 });
 
       await service.createOrder(dto);
 
-      expect(mockPrisma.purchaseOrder.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({ status: PurchaseOrderStatus.PENDING }),
-        }),
+      expect(mockOrdersRepository.create).toHaveBeenCalledWith(
+        expect.objectContaining({ status: PurchaseOrderStatus.PENDING }),
       );
     });
 
@@ -106,14 +96,14 @@ describe('OrdersService', () => {
       } catch (ex) {
         expect(ex).toBeInstanceOf(HttpException);
         expect(ex.getStatus()).toBe(400);
-        expect((ex.getResponse() as any).code).toBe('INVALID_SPECS_QUANTITY');
+        expect(ex.getResponse().code).toBe('INVALID_SPECS_QUANTITY');
       }
     });
   });
 
   describe('findOrderById', () => {
     it('존재하지 않는 id 조회 시 404 ORDER_NOT_FOUND를 던진다', async () => {
-      mockPrisma.purchaseOrder.findUnique.mockResolvedValue(null);
+      mockOrdersRepository.findById.mockResolvedValue(null);
 
       try {
         await service.findOrderById(999);
@@ -121,13 +111,13 @@ describe('OrdersService', () => {
       } catch (ex) {
         expect(ex).toBeInstanceOf(HttpException);
         expect(ex.getStatus()).toBe(404);
-        expect((ex.getResponse() as any).code).toBe('ORDER_NOT_FOUND');
+        expect(ex.getResponse().code).toBe('ORDER_NOT_FOUND');
       }
     });
   });
 
   describe('confirmOrder', () => {
-    it('PENDING 상태 발주서를 정상 확정하고 버전1 스냅샷과 상태 로그를 생성한다', async () => {
+    it('PENDING 상태 발주서를 정상 확정한다', async () => {
       const order = {
         id: 1,
         productName: '상품A',
@@ -139,46 +129,29 @@ describe('OrdersService', () => {
         currentVersion: 0,
         buyerId: 'buyer-1',
       };
-      const updatedOrder = { ...order, status: PurchaseOrderStatus.CONFIRMED, currentVersion: 1 };
+      const updatedOrder = {
+        ...order,
+        status: PurchaseOrderStatus.CONFIRMED,
+        currentVersion: 1,
+      };
 
-      mockPrisma.purchaseOrder.findUnique.mockResolvedValue(order);
-      mockPrisma.purchaseOrder.update.mockResolvedValue(updatedOrder);
-      mockPrisma.purchaseOrderVersion.create.mockResolvedValue({});
-      mockPrisma.orderStatusLog.create.mockResolvedValue({});
+      mockOrdersRepository.findById.mockResolvedValue(order);
+      mockOrdersRepository.confirmWithSnapshot.mockResolvedValue(updatedOrder);
 
       const result = await service.confirmOrder(1, 'sourcing-user');
 
-      expect(mockPrisma.$transaction).toHaveBeenCalledTimes(1);
-      expect(mockPrisma.purchaseOrder.update).toHaveBeenCalledWith({
-        where: { id: 1, status: PurchaseOrderStatus.PENDING },
-        data: { status: PurchaseOrderStatus.CONFIRMED, currentVersion: 1 },
-      });
-      expect(mockPrisma.purchaseOrderVersion.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({
-          orderId: 1,
-          version: 1,
-          reason: '초기 확정',
-          changedBy: 'sourcing-user',
-          changeRequestId: null,
-        }),
-      });
-      expect(mockPrisma.orderStatusLog.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({
-          orderId: 1,
-          fromStatus: PurchaseOrderStatus.PENDING,
-          toStatus: PurchaseOrderStatus.CONFIRMED,
-          changedBy: 'sourcing-user',
-        }),
-      });
+      expect(mockOrdersRepository.confirmWithSnapshot).toHaveBeenCalledWith(
+        order,
+        'sourcing-user',
+      );
       expect(result).toEqual(updatedOrder);
     });
 
     it('PENDING이 아닌 상태에서 확정 시 400 INVALID_STATUS_TRANSITION을 던진다', async () => {
-      const order = {
+      mockOrdersRepository.findById.mockResolvedValue({
         id: 1,
         status: PurchaseOrderStatus.DRAFT,
-      };
-      mockPrisma.purchaseOrder.findUnique.mockResolvedValue(order);
+      });
 
       try {
         await service.confirmOrder(1, 'sourcing-user');
@@ -186,12 +159,12 @@ describe('OrdersService', () => {
       } catch (ex) {
         expect(ex).toBeInstanceOf(HttpException);
         expect(ex.getStatus()).toBe(400);
-        expect((ex.getResponse() as any).code).toBe('INVALID_STATUS_TRANSITION');
+        expect(ex.getResponse().code).toBe('INVALID_STATUS_TRANSITION');
       }
     });
 
     it('발주서가 없을 때 404 ORDER_NOT_FOUND를 던진다', async () => {
-      mockPrisma.purchaseOrder.findUnique.mockResolvedValue(null);
+      mockOrdersRepository.findById.mockResolvedValue(null);
 
       try {
         await service.confirmOrder(999, 'sourcing-user');
@@ -199,7 +172,7 @@ describe('OrdersService', () => {
       } catch (ex) {
         expect(ex).toBeInstanceOf(HttpException);
         expect(ex.getStatus()).toBe(404);
-        expect((ex.getResponse() as any).code).toBe('ORDER_NOT_FOUND');
+        expect(ex.getResponse().code).toBe('ORDER_NOT_FOUND');
       }
     });
 
@@ -215,9 +188,9 @@ describe('OrdersService', () => {
         currentVersion: 0,
         buyerId: 'buyer-1',
       };
-      mockPrisma.purchaseOrder.findUnique.mockResolvedValue(order);
+      mockOrdersRepository.findById.mockResolvedValue(order);
       const dbError = new Error('DB 연결 오류');
-      mockPrisma.$transaction.mockRejectedValue(dbError);
+      mockOrdersRepository.confirmWithSnapshot.mockRejectedValue(dbError);
 
       const loggerErrorSpy = jest.spyOn(service['logger'], 'error');
 
@@ -230,7 +203,7 @@ describe('OrdersService', () => {
       }
     });
 
-    it('트랜잭션에서 P2025 에러 발생 시 400 INVALID_STATUS_TRANSITION으로 변환한다', async () => {
+    it('repository가 변환한 HttpException(INVALID_STATUS_TRANSITION)을 그대로 re-throw한다', async () => {
       const order = {
         id: 1,
         productName: '상품A',
@@ -242,11 +215,17 @@ describe('OrdersService', () => {
         currentVersion: 0,
         buyerId: 'buyer-1',
       };
-      mockPrisma.purchaseOrder.findUnique.mockResolvedValue(order);
-      const p2025Error = Object.assign(new Error('Record not found'), {
-        code: 'P2025',
-      }) as Prisma.PrismaClientKnownRequestError;
-      mockPrisma.$transaction.mockRejectedValue(p2025Error);
+      mockOrdersRepository.findById.mockResolvedValue(order);
+      const invalidStatusError = new HttpException(
+        {
+          code: 'INVALID_STATUS_TRANSITION',
+          message: '잘못된 상태 전이입니다.',
+        },
+        400,
+      );
+      mockOrdersRepository.confirmWithSnapshot.mockRejectedValue(
+        invalidStatusError,
+      );
 
       try {
         await service.confirmOrder(1, 'sourcing-user');
@@ -254,7 +233,9 @@ describe('OrdersService', () => {
       } catch (ex) {
         expect(ex).toBeInstanceOf(HttpException);
         expect((ex as HttpException).getStatus()).toBe(400);
-        expect(((ex as HttpException).getResponse() as any).code).toBe('INVALID_STATUS_TRANSITION');
+        expect(((ex as HttpException).getResponse() as any).code).toBe(
+          'INVALID_STATUS_TRANSITION',
+        );
       }
     });
 
@@ -270,9 +251,12 @@ describe('OrdersService', () => {
         currentVersion: 0,
         buyerId: 'buyer-1',
       };
-      mockPrisma.purchaseOrder.findUnique.mockResolvedValue(order);
-      const httpError = new HttpException({ code: 'SOME_CODE', message: 'test' }, 400);
-      mockPrisma.$transaction.mockRejectedValue(httpError);
+      mockOrdersRepository.findById.mockResolvedValue(order);
+      const httpError = new HttpException(
+        { code: 'SOME_CODE', message: 'test' },
+        400,
+      );
+      mockOrdersRepository.confirmWithSnapshot.mockRejectedValue(httpError);
 
       const loggerErrorSpy = jest.spyOn(service['logger'], 'error');
 

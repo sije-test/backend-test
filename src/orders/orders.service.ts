@@ -1,50 +1,49 @@
 import { HttpException, Injectable, Logger } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
-import { Prisma } from '../generated/prisma/client';
-import { ErrorCode } from '../common/constants/error-code.const';
+import { businessError } from '../common/exceptions/business.exception';
 import { PurchaseOrderStatus } from '../common/enums/purchase-order-status.enum';
 import { validateSpecsQuantity } from '../common/helpers/validate-specs-quantity.helper';
 import { CreateOrderDto } from './dto/create-order.dto';
+import { OrdersRepository } from './orders.repository';
 
 @Injectable()
 export class OrdersService {
   private readonly logger = new Logger(OrdersService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly repo: OrdersRepository) {}
 
   /** 발주서를 생성한다. specs sizes 합계가 quantity와 다르면 400을 던진다. */
   async createOrder(dto: CreateOrderDto) {
     validateSpecsQuantity(dto.specs, dto.quantity);
 
     try {
-      const order = await this.prisma.purchaseOrder.create({
-        data: {
-          productName: dto.productName,
-          quantity: dto.quantity,
-          unitPrice: dto.unitPrice,
-          specs: dto.specs as unknown as Prisma.InputJsonValue, // Prisma Json 컬럼 — SpecsDto 구조 그대로 저장
-          deliveryDate: new Date(dto.deliveryDate),
-          buyerId: dto.buyerId,
-          status: dto.status ?? PurchaseOrderStatus.DRAFT,
-        },
+      const order = await this.repo.create({
+        productName: dto.productName,
+        quantity: dto.quantity,
+        unitPrice: dto.unitPrice,
+        specs: dto.specs,
+        deliveryDate: new Date(dto.deliveryDate),
+        buyerId: dto.buyerId,
+        status: dto.status ?? PurchaseOrderStatus.DRAFT,
       });
-      this.logger.log(`발주서 생성 완료 orderId=${order.id} buyerId=${order.buyerId} status=${order.status}`);
+      this.logger.log(
+        `발주서 생성 완료 orderId=${order.id} buyerId=${order.buyerId} status=${order.status}`,
+      );
       return order;
     } catch (err) {
-      this.logger.error(`발주서 생성 실패 buyerId=${dto.buyerId} productName=${dto.productName}`, err instanceof Error ? err.stack : err);
+      this.logger.error(
+        `발주서 생성 실패 buyerId=${dto.buyerId} productName=${dto.productName}`,
+        err instanceof Error ? err.stack : err,
+      );
       throw err;
     }
   }
 
   /** 발주서를 id로 단건 조회한다. 존재하지 않으면 404를 던진다. */
   async findOrderById(id: number) {
-    const order = await this.prisma.purchaseOrder.findUnique({ where: { id } });
+    const order = await this.repo.findById(id);
     if (!order) {
       this.logger.warn(`발주서 없음 orderId=${id}`);
-      throw new HttpException(
-        { code: 'ORDER_NOT_FOUND', message: ErrorCode.ORDER_NOT_FOUND.message },
-        ErrorCode.ORDER_NOT_FOUND.status,
-      );
+      businessError('ORDER_NOT_FOUND');
     }
     return order;
   }
@@ -57,60 +56,23 @@ export class OrdersService {
     const order = await this.findOrderById(id);
 
     if (order.status !== PurchaseOrderStatus.PENDING) {
-      this.logger.warn(`확정 불가 — 현재 상태 orderId=${id} status=${order.status} userId=${userId}`);
-      throw new HttpException(
-        { code: 'INVALID_STATUS_TRANSITION', message: ErrorCode.INVALID_STATUS_TRANSITION.message },
-        ErrorCode.INVALID_STATUS_TRANSITION.status,
+      this.logger.warn(
+        `확정 불가 — 현재 상태 orderId=${id} status=${order.status} userId=${userId}`,
       );
+      businessError('INVALID_STATUS_TRANSITION');
     }
 
     try {
       // 확정 시 단일 트랜잭션: 상태 전이 → 버전1 스냅샷 → 상태 로그
-      const updated = await this.prisma.$transaction(async (tx) => {
-        const result = await tx.purchaseOrder.update({
-          where: { id, status: PurchaseOrderStatus.PENDING },
-          data: { status: PurchaseOrderStatus.CONFIRMED, currentVersion: 1 },
-        });
-
-        // 최초 확정 버전은 항상 1, changeRequestId는 변경요청 없는 초기 확정이므로 null
-        await tx.purchaseOrderVersion.create({
-          data: {
-            orderId: id,
-            version: 1,
-            productName: order.productName,
-            quantity: order.quantity,
-            unitPrice: order.unitPrice,
-            specs: order.specs as Prisma.InputJsonValue,
-            deliveryDate: order.deliveryDate,
-            changedBy: userId,
-            reason: '초기 확정',
-            changeRequestId: null,
-          },
-        });
-
-        await tx.orderStatusLog.create({
-          data: {
-            orderId: id,
-            fromStatus: PurchaseOrderStatus.PENDING,
-            toStatus: PurchaseOrderStatus.CONFIRMED,
-            changedBy: userId,
-          },
-        });
-
-        return result;
-      });
-
+      const updated = await this.repo.confirmWithSnapshot(order, userId);
       this.logger.log(`발주서 확정 완료 orderId=${id} userId=${userId}`);
       return updated;
     } catch (err) {
       if (err instanceof HttpException) throw err;
-      if ((err as Prisma.PrismaClientKnownRequestError)?.code === 'P2025') {
-        throw new HttpException(
-          { code: 'INVALID_STATUS_TRANSITION', message: ErrorCode.INVALID_STATUS_TRANSITION.message },
-          ErrorCode.INVALID_STATUS_TRANSITION.status,
-        );
-      }
-      this.logger.error(`발주서 확정 트랜잭션 실패 orderId=${id} userId=${userId}`, err instanceof Error ? err.stack : err);
+      this.logger.error(
+        `발주서 확정 트랜잭션 실패 orderId=${id} userId=${userId}`,
+        err instanceof Error ? err.stack : err,
+      );
       throw err;
     }
   }
