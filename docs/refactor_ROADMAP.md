@@ -126,15 +126,15 @@
 
 - **목적**: 확정 트랜잭션(3 테이블)·P2025 처리를 repository로 캡슐화한다.
 - **작업 내용**:
-  - [ ] `src/orders/orders.repository.ts` 생성
+  - [x] `src/orders/orders.repository.ts` 생성
     - `create(data)` — `purchaseOrder.create` 래핑
     - `findById(id)` — `findUnique({where:{id}})`, 없으면 `null` 반환 (404 throw는 서비스)
     - `confirmWithSnapshot(order, userId)` — 내부에서 `$transaction` + `purchaseOrder.update(guard:PENDING)` + `purchaseOrderVersion.create`(`buildVersionData` 사용) + `orderStatusLog.create` + P2025→`INVALID_STATUS_TRANSITION` 변환
-  - [ ] `OrdersModule.providers`에 `OrdersRepository` 추가
-  - [ ] `OrdersService` 생성자: `PrismaService` → `OrdersRepository`
-  - [ ] `orders.service.spec.ts` 재작성: `new OrdersService(mockOrdersRepository)`  
+  - [x] `OrdersModule.providers`에 `OrdersRepository` 추가
+  - [x] `OrdersService` 생성자: `PrismaService` → `OrdersRepository`
+  - [x] `orders.service.spec.ts` 재작성: `new OrdersService(mockOrdersRepository)`  
     트랜잭션 내부(update/create 인자) 어서션 → 신규 `orders.repository.spec.ts`로 이전
-  - [ ] `orders.repository.spec.ts` 신규 생성  
+  - [x] `orders.repository.spec.ts` 신규 생성  
     `$transaction:(cb)=>cb(mockPrisma)` 패턴 유지, P2025·Serializable 검증
 - **주의**: `orders.service.spec` logger spy 테스트 — P2025 변환은 repository, **logger.error는 서비스 try/catch 유지**이므로 `mockOrdersRepository.confirmWithSnapshot.mockRejectedValue(httpException)`으로 재작성
 - **검증**:
