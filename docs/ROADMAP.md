@@ -24,19 +24,19 @@
 - **목적**: 세 테이블(`PurchaseOrder`, `PurchaseOrderVersion`, `ChangeRequest`)과 두 enum을 DB에 반영하고 Prisma 클라이언트를 생성한다.
 - **브랜치**: `feature/prisma-schema`
 - **작업 내용**:
-  - [ ] `prisma/schema.prisma`에 아래 내용을 추가한다.
+  - [x] `prisma/schema.prisma`에 아래 내용을 추가한다.
     - enum `PurchaseOrderStatus` (DRAFT / PENDING / CONFIRMED / IN_PRODUCTION / COMPLETED)
     - enum `ChangeRequestStatus` (PENDING / APPROVED / REJECTED)
     - model `PurchaseOrder` — `id`, `productName`, `quantity`, `unitPrice Decimal @db.Decimal(12,2)`, `specs Json`, `deliveryDate DateTime @db.Date`, `status`, `currentVersion Int @default(0)`, `buyerId`, `createdAt`, `updatedAt @updatedAt`, 관계 필드
     - model `PurchaseOrderVersion` — `id`, `orderId`, `version`, `productName`, `quantity`, `unitPrice`, `specs`, `deliveryDate`, `changedBy`, `reason`, `changeRequestId Int?`, `createdAt`, 관계 필드, `@@unique([orderId, version])`, `@@index([orderId, createdAt])`
     - model `ChangeRequest` — `id`, `orderId`, `requestedBy`, `reason`, `changes Json`, `status`, `reviewedBy String?`, `reviewComment String?`, `createdAt`, `reviewedAt DateTime?`, 관계 필드
     - model `OrderStatusLog` — `id`, `orderId @map("order_id")`, `fromStatus @map("from_status")`, `toStatus @map("to_status")`, `changedBy @map("changed_by")`, `createdAt @map("created_at")`, 관계 필드, `@@index([orderId, createdAt])`, `@@map("order_status_logs")`
-  - [ ] 마이그레이션 실행 및 클라이언트 생성
+  - [x] 마이그레이션 실행 및 클라이언트 생성
     ```bash
     yarn prisma migrate dev --name init-schema
     yarn prisma generate
     ```
-  - [ ] `src/generated/prisma/client` 경로에 클라이언트가 생성되었는지 확인
+  - [x] `src/generated/prisma/client` 경로에 클라이언트가 생성되었는지 확인
 
 - **완료 기준**: `yarn prisma migrate dev` 성공, `src/generated/prisma/client` 디렉터리에 `PrismaClient` 타입이 `PurchaseOrder`, `PurchaseOrderVersion`, `ChangeRequest`, `OrderStatusLog` 모델을 모두 포함함.
 - **검증**:
@@ -53,13 +53,13 @@
 - **목적**: 12개 에러 코드와 `{ success: false, error: { code, message } }` 응답 구조를 전역 필터로 통일한다.
 - **브랜치**: `feature/common`
 - **작업 내용**:
-  - [ ] `src/common/enums/error-code.enum.ts` 생성
+  - [x] `src/common/constants/error-code.const.ts` 생성
     - 에러 코드와 HTTP 상태코드·메시지를 매핑하는 `ErrorCode` enum 또는 const map 작성
     - 포함 코드: `ORDER_NOT_FOUND(404)`, `VERSION_NOT_FOUND(404)`, `CHANGE_REQUEST_NOT_FOUND(404)`, `FORBIDDEN_ROLE(403)`, `INVALID_STATUS_TRANSITION(400)`, `ORDER_NOT_CONFIRMED(400)`, `CHANGE_REQUEST_ALREADY_PENDING(409)`, `CHANGE_REQUEST_NOT_PENDING(400)`, `CHANGES_REQUIRED(400)`, `INVALID_TIMESTAMP(400)`, `MISSING_ROLE_HEADER(400)`, `INVALID_SPECS_QUANTITY(400)`
-  - [ ] `src/common/filters/http-exception.filter.ts` 생성
+  - [x] `src/common/filters/http-exception.filter.ts` 생성
     - `ExceptionFilter` 구현, `HttpException`을 `{ success: false, error: { code, message } }` 형태로 변환
     - 알 수 없는 예외는 `500 INTERNAL_SERVER_ERROR`로 처리
-  - [ ] `src/main.ts`에 `HttpExceptionFilter` 전역 등록 (`app.useGlobalFilters`)
+  - [x] `src/main.ts`에 `HttpExceptionFilter` 전역 등록 (`app.useGlobalFilters`)
 
 - **완료 기준**: 존재하지 않는 경로 요청 시 `{ "success": false, "error": { "code": "...", "message": "..." } }` 구조로 응답.
 - **검증**:
@@ -71,15 +71,15 @@
 
 - **목적**: `X-User-Role` / `X-User-Id` 헤더를 읽어 권한을 검증하는 `RolesGuard`와 `@Roles()` 데코레이터를 작성한다.
 - **작업 내용**:
-  - [ ] `src/common/enums/purchase-order-status.enum.ts` 생성 — `PurchaseOrderStatus` enum (Prisma enum과 값 일치)
-  - [ ] `src/common/enums/change-request-status.enum.ts` 생성 — `ChangeRequestStatus` enum
-  - [ ] `src/common/enums/role.enum.ts` 생성 — `Role` enum (BUYER / SOURCING / MANUFACTURER)
-  - [ ] `src/common/decorators/roles.decorator.ts` 생성 — `@Roles(...roles: Role[])` 메타데이터 데코레이터
-  - [ ] `src/common/guards/roles.guard.ts` 생성
+  - [x] `src/common/enums/purchase-order-status.enum.ts` 생성 — `PurchaseOrderStatus` enum (Prisma enum과 값 일치)
+  - [x] `src/common/enums/change-request-status.enum.ts` 생성 — `ChangeRequestStatus` enum
+  - [x] `src/common/enums/role.enum.ts` 생성 — `Role` enum (BUYER / SOURCING / MANUFACTURER)
+  - [x] `src/common/decorators/roles.decorator.ts` 생성 — `@Roles(...roles: Role[])` 메타데이터 데코레이터
+  - [x] `src/common/guards/roles.guard.ts` 생성
     - `X-User-Role` 헤더 누락 시 `400 MISSING_ROLE_HEADER`
     - 허용되지 않은 역할 시 `403 FORBIDDEN_ROLE`
     - `X-User-Id` 헤더는 request에 주입 (서비스에서 사용)
-  - [ ] `src/common/common.module.ts` 생성 — Guard·Filter export
+  - [x] `src/common/common.module.ts` 생성 — Guard·Filter export
 
 - **완료 기준**: `@Roles(Role.BUYER)` 가드가 붙은 엔드포인트에 `X-User-Role: SOURCING`으로 요청 시 403 반환.
 - **검증**:
@@ -91,14 +91,14 @@
 
 - **목적**: `orders`와 `change-requests` 모듈에서 공용으로 사용하는 specs 관련 DTO를 `common/dto`에 작성한다.
 - **작업 내용**:
-  - [ ] `src/common/dto/size-item.dto.ts` 생성
+  - [x] `src/common/dto/size-item.dto.ts` 생성
     - `size: string` — `@IsString()`, `@IsNotEmpty()`
     - `quantity: number` — `@IsInt()`, `@Min(1)`
-  - [ ] `src/common/dto/specs.dto.ts` 생성
+  - [x] `src/common/dto/specs.dto.ts` 생성
     - `color: string` — `@IsString()`, `@IsNotEmpty()`
     - `sizes: SizeItemDto[]` — `@IsArray()`, `@ValidateNested({ each: true })`, `@Type(() => SizeItemDto)`
     - `color`, `sizes` 외 필드는 `ValidationPipe`의 `forbidNonWhitelisted`로 자동 400
-  - [ ] specs 수량 검증 로직을 서비스 레이어용 헬퍼 함수로 분리 고려
+  - [x] specs 수량 검증 로직을 서비스 레이어용 헬퍼 함수로 분리 고려
     - `validateSpecsQuantity(specs: SpecsDto, quantity: number): void` — 불일치 시 `INVALID_SPECS_QUANTITY` throw
 
 - **완료 기준**: `color` 누락, `sizes` 누락, 허용 외 필드 포함 요청 모두 400 반환. `sizes` 합계 !== `quantity`이면 서비스에서 400 반환.
@@ -111,7 +111,7 @@
 
 - **목적**: 변경요청의 `changes` 필드에 대한 타입 안전한 검증을 `ChangesDto`로 처리한다. `forbidNonWhitelisted`로 허용 외 필드를 자동 400 처리하며, 새 변경 가능 항목은 이 DTO에 필드를 추가하여 확장한다.
 - **작업 내용**:
-  - [ ] `src/common/dto/changes.dto.ts` 생성
+  - [x] `src/common/dto/changes.dto.ts` 생성
     - `quantity?: number` — `@IsOptional()`, `@IsInt()`, `@Min(1)`
     - `productName?: string` — `@IsOptional()`, `@IsString()`, `@IsNotEmpty()`
     - `unitPrice?: number` — `@IsOptional()`, `@IsNumber()`, `@Min(0)`
