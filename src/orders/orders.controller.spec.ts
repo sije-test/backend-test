@@ -8,6 +8,8 @@ const mockService = {
   createOrder: jest.fn(),
   findOrderById: jest.fn(),
   confirmOrder: jest.fn(),
+  startProduction: jest.fn(),
+  completeOrder: jest.fn(),
 };
 
 describe('OrdersController', () => {
@@ -71,6 +73,32 @@ describe('OrdersController', () => {
       await controller.confirm(1, req);
 
       expect(mockService.confirmOrder).toHaveBeenCalledWith(1, '');
+    });
+  });
+
+  describe('startProduction', () => {
+    it('service.startProduction(id, userId)가 올바른 인자로 호출되고 반환값을 그대로 전달한다', async () => {
+      const expected = { id: 5, status: 'IN_PRODUCTION' };
+      mockService.startProduction.mockResolvedValue(expected);
+      const req = { userId: 'sourcing-user' } as any;
+
+      const result = await controller.startProduction(5, req);
+
+      expect(mockService.startProduction).toHaveBeenCalledWith(5, 'sourcing-user');
+      expect(result).toEqual(expected);
+    });
+  });
+
+  describe('complete', () => {
+    it('service.completeOrder(id, userId)가 올바른 인자로 호출되고 반환값을 그대로 전달한다', async () => {
+      const expected = { id: 5, status: 'COMPLETED' };
+      mockService.completeOrder.mockResolvedValue(expected);
+      const req = { userId: 'sourcing-user' } as any;
+
+      const result = await controller.complete(5, req);
+
+      expect(mockService.completeOrder).toHaveBeenCalledWith(5, 'sourcing-user');
+      expect(result).toEqual(expected);
     });
   });
 });
