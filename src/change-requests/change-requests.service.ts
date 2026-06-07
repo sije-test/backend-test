@@ -26,26 +26,23 @@ export class ChangeRequestsService {
     private readonly ordersService: OrdersService,
   ) {}
 
-  /** 변경요청을 생성한다. 발주서가 CONFIRMED 이상일 때만 허용되며, PENDING 중인 변경요청이 없어야 한다. */
+  /** 변경요청을 생성한다. 발주서 생성자(buyerId)만 가능하며, 발주서가 CONFIRMED 이상일 때만 허용된다. PENDING 체크와 create를 Serializable 트랜잭션으로 묶어 동시 중복 요청을 방지한다. */
   async createChangeRequest(orderId: number, dto: CreateChangeRequestDto, userId: string) {
     const order = await this.ordersService.findOrderById(orderId);
+
+    if (order.buyerId !== userId) {
+      this.logger.warn(`변경요청 생성 불가 — 생성자 아님 orderId=${orderId} buyerId=${order.buyerId} userId=${userId}`);
+      throw new HttpException(
+        { code: 'NOT_ORDER_OWNER', message: ErrorCode.NOT_ORDER_OWNER.message },
+        ErrorCode.NOT_ORDER_OWNER.status,
+      );
+    }
 
     if (STATUS_RANK[order.status] < STATUS_RANK[PurchaseOrderStatus.CONFIRMED]) {
       this.logger.warn(`변경요청 생성 불가 — 확정 전 상태 orderId=${orderId} status=${order.status}`);
       throw new HttpException(
         { code: 'ORDER_NOT_CONFIRMED', message: ErrorCode.ORDER_NOT_CONFIRMED.message },
         ErrorCode.ORDER_NOT_CONFIRMED.status,
-      );
-    }
-
-    const existing = await this.prisma.changeRequest.findFirst({
-      where: { orderId, status: ChangeRequestStatus.PENDING },
-    });
-    if (existing) {
-      this.logger.warn(`변경요청 중복 orderId=${orderId} existingId=${existing.id}`);
-      throw new HttpException(
-        { code: 'CHANGE_REQUEST_ALREADY_PENDING', message: ErrorCode.CHANGE_REQUEST_ALREADY_PENDING.message },
-        ErrorCode.CHANGE_REQUEST_ALREADY_PENDING.status,
       );
     }
 
@@ -60,22 +57,43 @@ export class ChangeRequestsService {
       validateSpecsQuantity(dto.changes.specs, dto.changes.quantity ?? order.quantity);
     }
 
-    const changeRequest = await this.prisma.changeRequest.create({
-      data: {
-        orderId,
-        requestedBy: userId,
-        reason: dto.reason,
-        changes: dto.changes as unknown as Prisma.InputJsonValue,
-        status: ChangeRequestStatus.PENDING,
-      },
-    });
+    // PENDING 체크와 create를 Serializable 트랜잭션으로 묶어 동시 중복 요청 방지
+    try {
+      const changeRequest = await this.prisma.$transaction(async (tx) => {
+        const existing = await tx.changeRequest.findFirst({
+          where: { orderId, status: ChangeRequestStatus.PENDING },
+        });
+        if (existing) {
+          this.logger.warn(`변경요청 중복 orderId=${orderId} existingId=${existing.id}`);
+          throw new HttpException(
+            { code: 'CHANGE_REQUEST_ALREADY_PENDING', message: ErrorCode.CHANGE_REQUEST_ALREADY_PENDING.message },
+            ErrorCode.CHANGE_REQUEST_ALREADY_PENDING.status,
+          );
+        }
 
-    this.logger.log(`변경요청 생성 완료 orderId=${orderId} changeRequestId=${changeRequest.id} userId=${userId}`);
-    return changeRequest;
+        return tx.changeRequest.create({
+          data: {
+            orderId,
+            requestedBy: userId,
+            reason: dto.reason,
+            changes: dto.changes as unknown as Prisma.InputJsonValue,
+            status: ChangeRequestStatus.PENDING,
+          },
+        });
+      }, { isolationLevel: 'Serializable' });
+
+      this.logger.log(`변경요청 생성 완료 orderId=${orderId} changeRequestId=${changeRequest.id} userId=${userId}`);
+      return changeRequest;
+    } catch (err) {
+      if (err instanceof HttpException) throw err;
+      this.logger.error(`변경요청 생성 트랜잭션 실패 orderId=${orderId} userId=${userId}`, err instanceof Error ? err.stack : err);
+      throw err;
+    }
   }
 
-  /** 발주서에 속한 변경요청 목록을 생성일 오름차순으로 반환한다. */
+  /** 발주서에 속한 변경요청 목록을 생성일 오름차순으로 반환한다. 없는 발주서면 404를 위임한다. */
   async findChangeRequestsByOrderId(orderId: number) {
+    await this.ordersService.findOrderById(orderId);
     return this.prisma.changeRequest.findMany({
       where: { orderId },
       orderBy: { createdAt: 'asc' },
@@ -113,6 +131,15 @@ export class ChangeRequestsService {
     }
 
     const order = await this.ordersService.findOrderById(orderId);
+
+    if (STATUS_RANK[order.status] < STATUS_RANK[PurchaseOrderStatus.CONFIRMED]) {
+      this.logger.warn(`승인 불가 — 확정 전 상태 orderId=${orderId} status=${order.status}`);
+      throw new HttpException(
+        { code: 'ORDER_NOT_CONFIRMED', message: ErrorCode.ORDER_NOT_CONFIRMED.message },
+        ErrorCode.ORDER_NOT_CONFIRMED.status,
+      );
+    }
+
     const changes = changeRequest.changes as Record<string, any>;
 
     const mergedProductName = changes.productName ?? order.productName;
@@ -137,7 +164,7 @@ export class ChangeRequestsService {
           },
         });
 
-        await tx.purchaseOrder.update({
+        const updatedOrder = await tx.purchaseOrder.update({
           where: { id: orderId },
           data: {
             productName: mergedProductName,
@@ -152,7 +179,7 @@ export class ChangeRequestsService {
         await tx.purchaseOrderVersion.create({
           data: {
             orderId,
-            version: order.currentVersion + 1,
+            version: updatedOrder.currentVersion,
             productName: mergedProductName,
             quantity: mergedQuantity,
             unitPrice: mergedUnitPrice,
