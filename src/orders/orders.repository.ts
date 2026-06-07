@@ -30,6 +30,37 @@ export class OrdersRepository {
   }
 
   /**
+   * 발주서 상태를 from → to로 전이하고 OrderStatusLog를 원자적으로 기록한다.
+   * 낙관적 동시성 가드(where: status=from)를 사용하며, 실패 시 P2025→INVALID_STATUS_TRANSITION 변환.
+   */
+  async transitionStatusWithLog(
+    orderId: number,
+    from: PurchaseOrderStatus,
+    to: PurchaseOrderStatus,
+    userId: string,
+  ) {
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const result = await tx.purchaseOrder.update({
+          where: { id: orderId, status: from },
+          data: { status: to },
+        });
+
+        await tx.orderStatusLog.create({
+          data: { orderId, fromStatus: from, toStatus: to, changedBy: userId },
+        });
+
+        return result;
+      });
+    } catch (err) {
+      if ((err as Prisma.PrismaClientKnownRequestError)?.code === 'P2025') {
+        businessError('INVALID_STATUS_TRANSITION');
+      }
+      throw err;
+    }
+  }
+
+  /**
    * 발주서를 CONFIRMED로 확정하고 버전1 스냅샷·상태 로그를 원자적으로 생성한다.
    * 낙관적 동시성 가드(where: status=PENDING)를 사용하며, 실패 시 P2025→INVALID_STATUS_TRANSITION 변환.
    */

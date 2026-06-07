@@ -19,6 +19,7 @@ describe('OrdersService', () => {
       create: jest.fn(),
       findById: jest.fn(),
       confirmWithSnapshot: jest.fn(),
+      transitionStatusWithLog: jest.fn(),
     };
     service = new OrdersService(mockOrdersRepository);
   });
@@ -267,6 +268,148 @@ describe('OrdersService', () => {
         expect(ex).toBeInstanceOf(HttpException);
         expect((ex as HttpException).getStatus()).toBe(400);
         expect(loggerErrorSpy).not.toHaveBeenCalled();
+      }
+    });
+  });
+
+  describe('startProduction', () => {
+    it('CONFIRMED 상태 발주서를 정상적으로 IN_PRODUCTION으로 전이한다', async () => {
+      const order = {
+        id: 1,
+        status: PurchaseOrderStatus.CONFIRMED,
+      };
+      const updated = { ...order, status: PurchaseOrderStatus.IN_PRODUCTION };
+
+      mockOrdersRepository.findById.mockResolvedValue(order);
+      mockOrdersRepository.transitionStatusWithLog.mockResolvedValue(updated);
+
+      const result = await service.startProduction(1, 'sourcing-user');
+
+      expect(mockOrdersRepository.transitionStatusWithLog).toHaveBeenCalledWith(
+        1,
+        PurchaseOrderStatus.CONFIRMED,
+        PurchaseOrderStatus.IN_PRODUCTION,
+        'sourcing-user',
+      );
+      expect(result).toEqual(updated);
+    });
+
+    it('CONFIRMED가 아닌 상태에서 호출 시 400 INVALID_STATUS_TRANSITION을 던진다', async () => {
+      mockOrdersRepository.findById.mockResolvedValue({
+        id: 1,
+        status: PurchaseOrderStatus.PENDING,
+      });
+
+      try {
+        await service.startProduction(1, 'sourcing-user');
+        fail('예외가 발생해야 합니다');
+      } catch (ex) {
+        expect(ex).toBeInstanceOf(HttpException);
+        expect(ex.getStatus()).toBe(400);
+        expect(ex.getResponse().code).toBe('INVALID_STATUS_TRANSITION');
+      }
+    });
+
+    it('발주서가 없을 때 404 ORDER_NOT_FOUND를 던진다', async () => {
+      mockOrdersRepository.findById.mockResolvedValue(null);
+
+      try {
+        await service.startProduction(999, 'sourcing-user');
+        fail('예외가 발생해야 합니다');
+      } catch (ex) {
+        expect(ex).toBeInstanceOf(HttpException);
+        expect(ex.getStatus()).toBe(404);
+        expect(ex.getResponse().code).toBe('ORDER_NOT_FOUND');
+      }
+    });
+
+    it('트랜잭션 내부 DB 오류 시 logger.error 후 re-throw한다', async () => {
+      const order = { id: 1, status: PurchaseOrderStatus.CONFIRMED };
+      mockOrdersRepository.findById.mockResolvedValue(order);
+      const dbError = new Error('DB 연결 오류');
+      mockOrdersRepository.transitionStatusWithLog.mockRejectedValue(dbError);
+
+      const loggerErrorSpy = jest.spyOn(service['logger'], 'error');
+
+      try {
+        await service.startProduction(1, 'sourcing-user');
+        fail('예외가 발생해야 합니다');
+      } catch (ex) {
+        expect(ex).toBe(dbError);
+        expect(loggerErrorSpy).toHaveBeenCalled();
+      }
+    });
+
+    it('repo가 던진 HttpException(INVALID_STATUS_TRANSITION)을 그대로 re-throw한다', async () => {
+      const order = { id: 1, status: PurchaseOrderStatus.CONFIRMED };
+      mockOrdersRepository.findById.mockResolvedValue(order);
+      const invalidStatusError = new HttpException(
+        { code: 'INVALID_STATUS_TRANSITION', message: '잘못된 상태 전이입니다.' },
+        400,
+      );
+      mockOrdersRepository.transitionStatusWithLog.mockRejectedValue(invalidStatusError);
+
+      try {
+        await service.startProduction(1, 'sourcing-user');
+        fail('예외가 발생해야 합니다');
+      } catch (ex) {
+        expect(ex).toBeInstanceOf(HttpException);
+        expect((ex as HttpException).getStatus()).toBe(400);
+        expect(((ex as HttpException).getResponse() as any).code).toBe(
+          'INVALID_STATUS_TRANSITION',
+        );
+      }
+    });
+  });
+
+  describe('completeOrder', () => {
+    it('IN_PRODUCTION 상태 발주서를 정상적으로 COMPLETED로 전이한다', async () => {
+      const order = {
+        id: 1,
+        status: PurchaseOrderStatus.IN_PRODUCTION,
+      };
+      const updated = { ...order, status: PurchaseOrderStatus.COMPLETED };
+
+      mockOrdersRepository.findById.mockResolvedValue(order);
+      mockOrdersRepository.transitionStatusWithLog.mockResolvedValue(updated);
+
+      const result = await service.completeOrder(1, 'sourcing-user');
+
+      expect(mockOrdersRepository.transitionStatusWithLog).toHaveBeenCalledWith(
+        1,
+        PurchaseOrderStatus.IN_PRODUCTION,
+        PurchaseOrderStatus.COMPLETED,
+        'sourcing-user',
+      );
+      expect(result).toEqual(updated);
+    });
+
+    it('IN_PRODUCTION이 아닌 상태에서 호출 시 400 INVALID_STATUS_TRANSITION을 던진다', async () => {
+      mockOrdersRepository.findById.mockResolvedValue({
+        id: 1,
+        status: PurchaseOrderStatus.CONFIRMED,
+      });
+
+      try {
+        await service.completeOrder(1, 'sourcing-user');
+        fail('예외가 발생해야 합니다');
+      } catch (ex) {
+        expect(ex).toBeInstanceOf(HttpException);
+        expect(ex.getStatus()).toBe(400);
+        expect(ex.getResponse().code).toBe('INVALID_STATUS_TRANSITION');
+      }
+    });
+
+    it('발주서가 없을 때 404 ORDER_NOT_FOUND를 던진다', async () => {
+      mockOrdersRepository.findById.mockResolvedValue(null);
+
+      try {
+        await service.completeOrder(999, 'sourcing-user');
+        fail('예외가 발생해야 합니다');
+      } catch (ex) {
+        expect(ex).toBeInstanceOf(HttpException);
+        expect(ex.getStatus()).toBe(404);
+        expect(ex.getResponse().code).toBe('ORDER_NOT_FOUND');
       }
     });
   });
