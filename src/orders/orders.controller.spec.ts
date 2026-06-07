@@ -24,7 +24,7 @@ describe('OrdersController', () => {
         productName: '반팔 티셔츠',
         quantity: 10,
         unitPrice: 5000,
-        specs: { color: 'red', sizes: [{ size: 'M', quantity: 10 }] } as any,
+        specs: { color: 'red', sizes: [{ size: 'M', quantity: 10 }] },
         deliveryDate: '2025-12-01',
         buyerId: 'buyer-1',
         status: PurchaseOrderStatus.PENDING,

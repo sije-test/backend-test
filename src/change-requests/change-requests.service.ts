@@ -83,14 +83,17 @@ export class ChangeRequestsService {
     dto: ReviewChangeRequestDto,
     userId: string,
   ) {
-    const changeRequest = await this.loadPendingChangeRequest(requestId, orderId);
+    const changeRequest = await this.loadPendingChangeRequest(
+      requestId,
+      orderId,
+    );
 
     const order = await this.ordersService.findOrderById(orderId);
 
     this.assertOrderConfirmed(order, '승인 불가 — 확정 전 상태');
 
     const changes = changeRequest.changes as Record<string, unknown>;
-    const merged = mergeChanges(order as Record<string, unknown>, changes);
+    const merged = mergeChanges(order, changes);
 
     if (changes.specs) {
       validateSpecsQuantity(
@@ -180,7 +183,9 @@ export class ChangeRequestsService {
   private async loadPendingChangeRequest(requestId: number, orderId: number) {
     const changeRequest = await this.repo.findByIdAndOrder(requestId, orderId);
     if (!changeRequest) {
-      this.logger.warn(`변경요청 없음 requestId=${requestId} orderId=${orderId}`);
+      this.logger.warn(
+        `변경요청 없음 requestId=${requestId} orderId=${orderId}`,
+      );
       businessError('CHANGE_REQUEST_NOT_FOUND');
     }
     if (changeRequest.status !== ChangeRequestStatus.PENDING) {

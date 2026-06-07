@@ -177,9 +177,9 @@
 
 - **목적**: 서비스 파일에서 `PrismaService`·`Prisma` import를 제거해 DIP 달성을 명시적으로 확인한다.
 - **작업 내용**:
-  - [ ] 세 서비스에서 `import { PrismaService }` 제거 (repository가 담당)
-  - [ ] 서비스에 남은 `import { Prisma }` 제거 (`P2025` 참조가 repository로 이동했으므로)
-  - [ ] `yarn lint --fix`, `yarn format` 실행
+  - [x] 세 서비스에서 `import { PrismaService }` 제거 (repository가 담당)
+  - [x] 서비스에 남은 `import { Prisma }` 제거 (`P2025` 참조가 repository로 이동했으므로)
+  - [x] `yarn lint --fix`, `yarn format` 실행
 - **검증**:
   ```bash
   yarn test

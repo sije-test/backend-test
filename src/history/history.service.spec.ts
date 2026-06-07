@@ -2,7 +2,6 @@ import { HttpException } from '@nestjs/common';
 import { Prisma } from '../generated/prisma/client';
 import { HistoryService } from './history.service';
 
-
 function makeVersion(overrides: Record<string, any> = {}) {
   return {
     id: 1,
@@ -44,15 +43,21 @@ describe('HistoryService', () => {
       findVersion: jest.fn(),
       findLatestVersionBefore: jest.fn(),
       findStatusLogsByOrder: jest.fn(),
-    } as unknown as any;
+    };
     mockOrdersService = { findOrderById: jest.fn() };
     service = new HistoryService(mockHistoryRepository, mockOrdersService);
   });
 
   describe('getHistory', () => {
     it('버전 2건을 createdAt ASC 정렬로 반환한다', async () => {
-      const v1 = makeVersion({ version: 1, createdAt: new Date('2025-01-01T00:00:00.000Z') });
-      const v2 = makeVersion({ version: 2, createdAt: new Date('2025-02-01T00:00:00.000Z') });
+      const v1 = makeVersion({
+        version: 1,
+        createdAt: new Date('2025-01-01T00:00:00.000Z'),
+      });
+      const v2 = makeVersion({
+        version: 2,
+        createdAt: new Date('2025-02-01T00:00:00.000Z'),
+      });
       mockOrdersService.findOrderById.mockResolvedValue({ id: 1 });
       mockHistoryRepository.findVersionsByOrder.mockResolvedValue([v1, v2]);
 
@@ -74,7 +79,10 @@ describe('HistoryService', () => {
     });
 
     it('없는 발주서 → ORDER_NOT_FOUND 404 전파', async () => {
-      const notFoundError = new HttpException({ code: 'ORDER_NOT_FOUND', message: '발주서를 찾을 수 없습니다.' }, 404);
+      const notFoundError = new HttpException(
+        { code: 'ORDER_NOT_FOUND', message: '발주서를 찾을 수 없습니다.' },
+        404,
+      );
       mockOrdersService.findOrderById.mockRejectedValue(notFoundError);
       await expect(service.getHistory(999)).rejects.toThrow(notFoundError);
     });
@@ -102,29 +110,39 @@ describe('HistoryService', () => {
       } catch (ex) {
         expect(ex).toBeInstanceOf(HttpException);
         expect(ex.getStatus()).toBe(404);
-        expect((ex.getResponse() as any).code).toBe('VERSION_NOT_FOUND');
+        expect(ex.getResponse().code).toBe('VERSION_NOT_FOUND');
       }
     });
 
     it('없는 발주서 → ORDER_NOT_FOUND 404 전파', async () => {
-      const notFoundError = new HttpException({ code: 'ORDER_NOT_FOUND', message: '발주서를 찾을 수 없습니다.' }, 404);
+      const notFoundError = new HttpException(
+        { code: 'ORDER_NOT_FOUND', message: '발주서를 찾을 수 없습니다.' },
+        404,
+      );
       mockOrdersService.findOrderById.mockRejectedValue(notFoundError);
-      await expect(service.getVersionSnapshot(999, 1)).rejects.toThrow(notFoundError);
+      await expect(service.getVersionSnapshot(999, 1)).rejects.toThrow(
+        notFoundError,
+      );
     });
   });
 
   describe('getSnapshotAtTimestamp', () => {
     it('시점 이전 최신 버전을 반환한다', async () => {
-      const v1 = makeVersion({ version: 1, createdAt: new Date('2025-01-01T00:00:00.000Z') });
+      const v1 = makeVersion({
+        version: 1,
+        createdAt: new Date('2025-01-01T00:00:00.000Z'),
+      });
       mockOrdersService.findOrderById.mockResolvedValue({ id: 1 });
       mockHistoryRepository.findLatestVersionBefore.mockResolvedValue(v1);
 
-      const result = await service.getSnapshotAtTimestamp(1, '2025-06-01T00:00:00.000Z');
-
-      expect(mockHistoryRepository.findLatestVersionBefore).toHaveBeenCalledWith(
+      const result = await service.getSnapshotAtTimestamp(
         1,
-        new Date('2025-06-01T00:00:00.000Z'),
+        '2025-06-01T00:00:00.000Z',
       );
+
+      expect(
+        mockHistoryRepository.findLatestVersionBefore,
+      ).toHaveBeenCalledWith(1, new Date('2025-06-01T00:00:00.000Z'));
       expect(result).toEqual(v1);
     });
 
@@ -138,14 +156,19 @@ describe('HistoryService', () => {
       } catch (ex) {
         expect(ex).toBeInstanceOf(HttpException);
         expect(ex.getStatus()).toBe(404);
-        expect((ex.getResponse() as any).code).toBe('VERSION_NOT_FOUND');
+        expect(ex.getResponse().code).toBe('VERSION_NOT_FOUND');
       }
     });
 
     it('없는 발주서 → ORDER_NOT_FOUND 404 전파', async () => {
-      const notFoundError = new HttpException({ code: 'ORDER_NOT_FOUND', message: '발주서를 찾을 수 없습니다.' }, 404);
+      const notFoundError = new HttpException(
+        { code: 'ORDER_NOT_FOUND', message: '발주서를 찾을 수 없습니다.' },
+        404,
+      );
       mockOrdersService.findOrderById.mockRejectedValue(notFoundError);
-      await expect(service.getSnapshotAtTimestamp(999, '2025-06-01T00:00:00.000Z')).rejects.toThrow(notFoundError);
+      await expect(
+        service.getSnapshotAtTimestamp(999, '2025-06-01T00:00:00.000Z'),
+      ).rejects.toThrow(notFoundError);
     });
 
     it('잘못된 timestamp 형식 → 400 INVALID_TIMESTAMP', async () => {
@@ -155,7 +178,7 @@ describe('HistoryService', () => {
       } catch (ex) {
         expect(ex).toBeInstanceOf(HttpException);
         expect(ex.getStatus()).toBe(400);
-        expect((ex.getResponse() as any).code).toBe('INVALID_TIMESTAMP');
+        expect(ex.getResponse().code).toBe('INVALID_TIMESTAMP');
       }
     });
   });
@@ -196,7 +219,7 @@ describe('HistoryService', () => {
       } catch (ex) {
         expect(ex).toBeInstanceOf(HttpException);
         expect(ex.getStatus()).toBe(400);
-        expect((ex.getResponse() as any).code).toBe('INVALID_VERSION_RANGE');
+        expect(ex.getResponse().code).toBe('INVALID_VERSION_RANGE');
       }
       expect(mockHistoryRepository.findVersion).not.toHaveBeenCalled();
     });
@@ -210,7 +233,7 @@ describe('HistoryService', () => {
       } catch (ex) {
         expect(ex).toBeInstanceOf(HttpException);
         expect(ex.getStatus()).toBe(404);
-        expect((ex.getResponse() as any).code).toBe('VERSION_NOT_FOUND');
+        expect(ex.getResponse().code).toBe('VERSION_NOT_FOUND');
       }
     });
 
@@ -230,8 +253,14 @@ describe('HistoryService', () => {
     });
 
     it('unitPrice 다르면 diff에 포함된다 (Decimal 인스턴스)', async () => {
-      const v1 = makeVersion({ version: 1, unitPrice: new Prisma.Decimal('15000.00') });
-      const v2 = makeVersion({ version: 2, unitPrice: new Prisma.Decimal('20000.00') });
+      const v1 = makeVersion({
+        version: 1,
+        unitPrice: new Prisma.Decimal('15000.00'),
+      });
+      const v2 = makeVersion({
+        version: 2,
+        unitPrice: new Prisma.Decimal('20000.00'),
+      });
       mockHistoryRepository.findVersion
         .mockResolvedValueOnce(v1)
         .mockResolvedValueOnce(v2);
@@ -287,7 +316,13 @@ describe('HistoryService', () => {
 
       expect(result.diff).toHaveLength(5);
       const fields = result.diff.map((d) => d.field);
-      expect(fields).toEqual(['productName', 'quantity', 'unitPrice', 'specs', 'deliveryDate']);
+      expect(fields).toEqual([
+        'productName',
+        'quantity',
+        'unitPrice',
+        'specs',
+        'deliveryDate',
+      ]);
     });
 
     it('deliveryDate 다르면 diff에 포함된다 (ISO 문자열 직렬화)', async () => {
@@ -310,14 +345,27 @@ describe('HistoryService', () => {
 
   describe('getStatusHistory', () => {
     it('상태 로그를 createdAt ASC 정렬로 반환한다', async () => {
-      const log1 = makeStatusLog({ id: 1, createdAt: new Date('2025-01-01T00:00:00.000Z') });
-      const log2 = makeStatusLog({ id: 2, fromStatus: 'CONFIRMED', toStatus: 'IN_PRODUCTION', createdAt: new Date('2025-02-01T00:00:00.000Z') });
+      const log1 = makeStatusLog({
+        id: 1,
+        createdAt: new Date('2025-01-01T00:00:00.000Z'),
+      });
+      const log2 = makeStatusLog({
+        id: 2,
+        fromStatus: 'CONFIRMED',
+        toStatus: 'IN_PRODUCTION',
+        createdAt: new Date('2025-02-01T00:00:00.000Z'),
+      });
       mockOrdersService.findOrderById.mockResolvedValue({ id: 1 });
-      mockHistoryRepository.findStatusLogsByOrder.mockResolvedValue([log1, log2]);
+      mockHistoryRepository.findStatusLogsByOrder.mockResolvedValue([
+        log1,
+        log2,
+      ]);
 
       const result = await service.getStatusHistory(1);
 
-      expect(mockHistoryRepository.findStatusLogsByOrder).toHaveBeenCalledWith(1);
+      expect(mockHistoryRepository.findStatusLogsByOrder).toHaveBeenCalledWith(
+        1,
+      );
       expect(result).toHaveLength(2);
     });
 
@@ -331,10 +379,15 @@ describe('HistoryService', () => {
     });
 
     it('없는 발주서 → ORDER_NOT_FOUND 404 전파', async () => {
-      const notFoundError = new HttpException({ code: 'ORDER_NOT_FOUND', message: '발주서를 찾을 수 없습니다.' }, 404);
+      const notFoundError = new HttpException(
+        { code: 'ORDER_NOT_FOUND', message: '발주서를 찾을 수 없습니다.' },
+        404,
+      );
       mockOrdersService.findOrderById.mockRejectedValue(notFoundError);
 
-      await expect(service.getStatusHistory(999)).rejects.toThrow(notFoundError);
+      await expect(service.getStatusHistory(999)).rejects.toThrow(
+        notFoundError,
+      );
     });
   });
 });

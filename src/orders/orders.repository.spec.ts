@@ -30,7 +30,7 @@ describe('OrdersRepository', () => {
       purchaseOrderVersion: { create: jest.fn() },
       orderStatusLog: { create: jest.fn() },
       $transaction: jest.fn((cb: (tx: any) => Promise<any>) => cb(mockPrisma)),
-    } as unknown as any;
+    };
     repo = new OrdersRepository(mockPrisma);
   });
 
@@ -50,7 +50,9 @@ describe('OrdersRepository', () => {
       const result = await repo.create(data);
 
       expect(mockPrisma.purchaseOrder.create).toHaveBeenCalledWith(
-        expect.objectContaining({ data: expect.objectContaining({ productName: '상품A' }) }),
+        expect.objectContaining({
+          data: expect.objectContaining({ productName: '상품A' }),
+        }),
       );
       expect(result).toEqual(expect.objectContaining({ id: 1 }));
     });
@@ -63,7 +65,9 @@ describe('OrdersRepository', () => {
 
       const result = await repo.findById(1);
 
-      expect(mockPrisma.purchaseOrder.findUnique).toHaveBeenCalledWith({ where: { id: 1 } });
+      expect(mockPrisma.purchaseOrder.findUnique).toHaveBeenCalledWith({
+        where: { id: 1 },
+      });
       expect(result).toEqual(order);
     });
 
@@ -79,7 +83,11 @@ describe('OrdersRepository', () => {
   describe('confirmWithSnapshot', () => {
     it('$transaction 내에서 update / purchaseOrderVersion.create / orderStatusLog.create를 순서대로 호출한다', async () => {
       const order = makeOrder();
-      const updatedOrder = { ...order, status: PurchaseOrderStatus.CONFIRMED, currentVersion: 1 };
+      const updatedOrder = {
+        ...order,
+        status: PurchaseOrderStatus.CONFIRMED,
+        currentVersion: 1,
+      };
       mockPrisma.purchaseOrder.update.mockResolvedValue(updatedOrder);
       mockPrisma.purchaseOrderVersion.create.mockResolvedValue({});
       mockPrisma.orderStatusLog.create.mockResolvedValue({});
@@ -128,7 +136,9 @@ describe('OrdersRepository', () => {
       } catch (ex) {
         expect(ex).toBeInstanceOf(HttpException);
         expect((ex as HttpException).getStatus()).toBe(400);
-        expect(((ex as HttpException).getResponse() as any).code).toBe('INVALID_STATUS_TRANSITION');
+        expect(((ex as HttpException).getResponse() as any).code).toBe(
+          'INVALID_STATUS_TRANSITION',
+        );
       }
     });
 
@@ -137,7 +147,9 @@ describe('OrdersRepository', () => {
       const dbError = new Error('DB 연결 오류');
       mockPrisma.$transaction.mockRejectedValue(dbError);
 
-      await expect(repo.confirmWithSnapshot(order, 'sourcing-user')).rejects.toThrow(dbError);
+      await expect(
+        repo.confirmWithSnapshot(order, 'sourcing-user'),
+      ).rejects.toThrow(dbError);
     });
   });
 });

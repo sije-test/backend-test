@@ -69,7 +69,9 @@ export class HistoryService {
     const diff: { field: string; before: unknown; after: unknown }[] = [];
     for (const f of ORDER_FIELDS) {
       // Decimal/Date/Json 타입이 섞여 있어 원시값 직접 비교 불가 — 타입별 정규화 후 문자열 비교
-      const before = f.serialize(fromSnapshot[f.key as keyof typeof fromSnapshot]);
+      const before = f.serialize(
+        fromSnapshot[f.key as keyof typeof fromSnapshot],
+      );
       const after = f.serialize(toSnapshot[f.key as keyof typeof toSnapshot]);
       if (before !== after) {
         // 비교는 직렬화 후 하되, 응답에는 raw 값을 넣어 클라이언트가 올바른 타입으로 받도록 함

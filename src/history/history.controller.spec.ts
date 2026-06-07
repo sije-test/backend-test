@@ -20,7 +20,10 @@ describe('HistoryController', () => {
 
   describe('getHistory', () => {
     it('historyService.getHistory를 1회 호출하고 반환값을 그대로 전달한다', async () => {
-      const expected = [{ id: 1, version: 1 }, { id: 2, version: 2 }];
+      const expected = [
+        { id: 1, version: 1 },
+        { id: 2, version: 2 },
+      ];
       mockService.getHistory.mockResolvedValue(expected);
 
       const result = await controller.getHistory(10);
@@ -53,7 +56,10 @@ describe('HistoryController', () => {
       const result = await controller.getAt(10, timestamp);
 
       expect(mockService.getSnapshotAtTimestamp).toHaveBeenCalledTimes(1);
-      expect(mockService.getSnapshotAtTimestamp).toHaveBeenCalledWith(10, timestamp);
+      expect(mockService.getSnapshotAtTimestamp).toHaveBeenCalledWith(
+        10,
+        timestamp,
+      );
       expect(result).toEqual(expected);
     });
 
@@ -62,7 +68,10 @@ describe('HistoryController', () => {
 
       await controller.getAt(10, undefined as any);
 
-      expect(mockService.getSnapshotAtTimestamp).toHaveBeenCalledWith(10, undefined);
+      expect(mockService.getSnapshotAtTimestamp).toHaveBeenCalledWith(
+        10,
+        undefined,
+      );
     });
   });
 
@@ -95,7 +104,10 @@ describe('HistoryController', () => {
 
   describe('getStatusHistory', () => {
     it('historyService.getStatusHistory를 1회 호출하고 반환값을 그대로 전달한다', async () => {
-      const expected = [{ id: 1, status: 'DRAFT' }, { id: 2, status: 'SUBMITTED' }];
+      const expected = [
+        { id: 1, status: 'DRAFT' },
+        { id: 2, status: 'SUBMITTED' },
+      ];
       mockService.getStatusHistory.mockResolvedValue(expected);
 
       const result = await controller.getStatusHistory(10);

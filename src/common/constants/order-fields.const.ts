@@ -7,11 +7,27 @@ export interface OrderFieldDescriptor {
 }
 
 export const ORDER_FIELDS: readonly OrderFieldDescriptor[] = [
-  { key: 'productName',  fromChange: (v) => v,                      serialize: (v) => JSON.stringify(v) },
-  { key: 'quantity',     fromChange: (v) => v,                      serialize: (v) => JSON.stringify(v) },
-  { key: 'unitPrice',    fromChange: (v) => Number(v),              serialize: (v) => String(v) },
-  { key: 'specs',        fromChange: (v) => v,                      serialize: (v) => JSON.stringify(v) },
-  { key: 'deliveryDate', fromChange: (v) => new Date(v as string),  serialize: (v) => v instanceof Date ? v.toISOString() : String(v) },
+  {
+    key: 'productName',
+    fromChange: (v) => v,
+    serialize: (v) => JSON.stringify(v),
+  },
+  {
+    key: 'quantity',
+    fromChange: (v) => v,
+    serialize: (v) => JSON.stringify(v),
+  },
+  {
+    key: 'unitPrice',
+    fromChange: (v) => Number(v),
+    serialize: (v) => String(v),
+  },
+  { key: 'specs', fromChange: (v) => v, serialize: (v) => JSON.stringify(v) },
+  {
+    key: 'deliveryDate',
+    fromChange: (v) => new Date(v as string),
+    serialize: (v) => (v instanceof Date ? v.toISOString() : String(v)),
+  },
 ];
 
 /** approve 경로에서 changes를 order에 머지한다. changes에 있는 필드만 fromChange로 변환 후 덮어쓴다. */

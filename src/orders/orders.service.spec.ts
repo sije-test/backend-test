@@ -5,8 +5,10 @@ import { SpecsDto } from '../common/dto/specs.dto';
 import { CreateOrderDto } from './dto/create-order.dto';
 
 const makeSizesDto = (size: string, qty: number) => ({ size, quantity: qty });
-const makeSpecs = (color: string, sizes: { size: string; quantity: number }[]): SpecsDto =>
-  ({ color, sizes } as SpecsDto);
+const makeSpecs = (
+  color: string,
+  sizes: { size: string; quantity: number }[],
+): SpecsDto => ({ color, sizes });
 
 describe('OrdersService', () => {
   let mockOrdersRepository: jest.Mocked<any>;
@@ -17,7 +19,7 @@ describe('OrdersService', () => {
       create: jest.fn(),
       findById: jest.fn(),
       confirmWithSnapshot: jest.fn(),
-    } as unknown as any;
+    };
     service = new OrdersService(mockOrdersRepository);
   });
 
@@ -94,7 +96,7 @@ describe('OrdersService', () => {
       } catch (ex) {
         expect(ex).toBeInstanceOf(HttpException);
         expect(ex.getStatus()).toBe(400);
-        expect((ex.getResponse() as any).code).toBe('INVALID_SPECS_QUANTITY');
+        expect(ex.getResponse().code).toBe('INVALID_SPECS_QUANTITY');
       }
     });
   });
@@ -109,7 +111,7 @@ describe('OrdersService', () => {
       } catch (ex) {
         expect(ex).toBeInstanceOf(HttpException);
         expect(ex.getStatus()).toBe(404);
-        expect((ex.getResponse() as any).code).toBe('ORDER_NOT_FOUND');
+        expect(ex.getResponse().code).toBe('ORDER_NOT_FOUND');
       }
     });
   });
@@ -127,19 +129,29 @@ describe('OrdersService', () => {
         currentVersion: 0,
         buyerId: 'buyer-1',
       };
-      const updatedOrder = { ...order, status: PurchaseOrderStatus.CONFIRMED, currentVersion: 1 };
+      const updatedOrder = {
+        ...order,
+        status: PurchaseOrderStatus.CONFIRMED,
+        currentVersion: 1,
+      };
 
       mockOrdersRepository.findById.mockResolvedValue(order);
       mockOrdersRepository.confirmWithSnapshot.mockResolvedValue(updatedOrder);
 
       const result = await service.confirmOrder(1, 'sourcing-user');
 
-      expect(mockOrdersRepository.confirmWithSnapshot).toHaveBeenCalledWith(order, 'sourcing-user');
+      expect(mockOrdersRepository.confirmWithSnapshot).toHaveBeenCalledWith(
+        order,
+        'sourcing-user',
+      );
       expect(result).toEqual(updatedOrder);
     });
 
     it('PENDING이 아닌 상태에서 확정 시 400 INVALID_STATUS_TRANSITION을 던진다', async () => {
-      mockOrdersRepository.findById.mockResolvedValue({ id: 1, status: PurchaseOrderStatus.DRAFT });
+      mockOrdersRepository.findById.mockResolvedValue({
+        id: 1,
+        status: PurchaseOrderStatus.DRAFT,
+      });
 
       try {
         await service.confirmOrder(1, 'sourcing-user');
@@ -147,7 +159,7 @@ describe('OrdersService', () => {
       } catch (ex) {
         expect(ex).toBeInstanceOf(HttpException);
         expect(ex.getStatus()).toBe(400);
-        expect((ex.getResponse() as any).code).toBe('INVALID_STATUS_TRANSITION');
+        expect(ex.getResponse().code).toBe('INVALID_STATUS_TRANSITION');
       }
     });
 
@@ -160,7 +172,7 @@ describe('OrdersService', () => {
       } catch (ex) {
         expect(ex).toBeInstanceOf(HttpException);
         expect(ex.getStatus()).toBe(404);
-        expect((ex.getResponse() as any).code).toBe('ORDER_NOT_FOUND');
+        expect(ex.getResponse().code).toBe('ORDER_NOT_FOUND');
       }
     });
 
@@ -205,10 +217,15 @@ describe('OrdersService', () => {
       };
       mockOrdersRepository.findById.mockResolvedValue(order);
       const invalidStatusError = new HttpException(
-        { code: 'INVALID_STATUS_TRANSITION', message: '잘못된 상태 전이입니다.' },
+        {
+          code: 'INVALID_STATUS_TRANSITION',
+          message: '잘못된 상태 전이입니다.',
+        },
         400,
       );
-      mockOrdersRepository.confirmWithSnapshot.mockRejectedValue(invalidStatusError);
+      mockOrdersRepository.confirmWithSnapshot.mockRejectedValue(
+        invalidStatusError,
+      );
 
       try {
         await service.confirmOrder(1, 'sourcing-user');
@@ -216,7 +233,9 @@ describe('OrdersService', () => {
       } catch (ex) {
         expect(ex).toBeInstanceOf(HttpException);
         expect((ex as HttpException).getStatus()).toBe(400);
-        expect(((ex as HttpException).getResponse() as any).code).toBe('INVALID_STATUS_TRANSITION');
+        expect(((ex as HttpException).getResponse() as any).code).toBe(
+          'INVALID_STATUS_TRANSITION',
+        );
       }
     });
 
@@ -233,7 +252,10 @@ describe('OrdersService', () => {
         buyerId: 'buyer-1',
       };
       mockOrdersRepository.findById.mockResolvedValue(order);
-      const httpError = new HttpException({ code: 'SOME_CODE', message: 'test' }, 400);
+      const httpError = new HttpException(
+        { code: 'SOME_CODE', message: 'test' },
+        400,
+      );
       mockOrdersRepository.confirmWithSnapshot.mockRejectedValue(httpError);
 
       const loggerErrorSpy = jest.spyOn(service['logger'], 'error');

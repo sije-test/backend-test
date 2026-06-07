@@ -37,7 +37,10 @@ export class ChangeRequestsRepository {
     return this.prisma.$transaction(
       async (tx) => {
         const existing = await tx.changeRequest.findFirst({
-          where: { orderId: input.orderId, status: ChangeRequestStatus.PENDING },
+          where: {
+            orderId: input.orderId,
+            status: ChangeRequestStatus.PENDING,
+          },
         });
         if (existing) {
           businessError('CHANGE_REQUEST_ALREADY_PENDING');
@@ -113,7 +116,10 @@ export class ChangeRequestsRepository {
   }
 
   /** 변경요청을 REJECTED로 전환한다. 발주서 내용은 변경하지 않는다. */
-  reject(requestId: number, reviewData: { reviewedBy: string; reviewComment: string | null }) {
+  reject(
+    requestId: number,
+    reviewData: { reviewedBy: string; reviewComment: string | null },
+  ) {
     return this.prisma.changeRequest.update({
       where: { id: requestId },
       data: {

@@ -1,4 +1,14 @@
-import { IsString, IsNotEmpty, IsInt, Min, IsNumber, IsDateString, IsOptional, IsIn, ValidateNested } from 'class-validator';
+import {
+  IsString,
+  IsNotEmpty,
+  IsInt,
+  Min,
+  IsNumber,
+  IsDateString,
+  IsOptional,
+  IsIn,
+  ValidateNested,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { SpecsDto } from '../../common/dto/specs.dto';
@@ -26,7 +36,10 @@ export class CreateOrderDto {
   specs: SpecsDto;
 
   @ApiProperty({ example: '2025-12-01', description: '납기일 (ISO 8601 날짜)' })
-  @IsDateString({}, { message: 'deliveryDate는 ISO 8601 날짜 형식이어야 합니다.' })
+  @IsDateString(
+    {},
+    { message: 'deliveryDate는 ISO 8601 날짜 형식이어야 합니다.' },
+  )
   deliveryDate: string;
 
   @ApiProperty({ example: 'buyer-uuid-1234', description: '발주자 사용자 ID' })
@@ -34,8 +47,14 @@ export class CreateOrderDto {
   @IsNotEmpty({ message: 'buyerId는 비어 있을 수 없습니다.' })
   buyerId: string;
 
-  @ApiPropertyOptional({ enum: PurchaseOrderStatus, default: PurchaseOrderStatus.DRAFT, description: '초기 상태' })
+  @ApiPropertyOptional({
+    enum: PurchaseOrderStatus,
+    default: PurchaseOrderStatus.DRAFT,
+    description: '초기 상태',
+  })
   @IsOptional()
-  @IsIn([PurchaseOrderStatus.DRAFT, PurchaseOrderStatus.PENDING], { message: `status는 ${PurchaseOrderStatus.DRAFT} 또는 ${PurchaseOrderStatus.PENDING}만 허용됩니다.` })
+  @IsIn([PurchaseOrderStatus.DRAFT, PurchaseOrderStatus.PENDING], {
+    message: `status는 ${PurchaseOrderStatus.DRAFT} 또는 ${PurchaseOrderStatus.PENDING}만 허용됩니다.`,
+  })
   status?: PurchaseOrderStatus;
 }
