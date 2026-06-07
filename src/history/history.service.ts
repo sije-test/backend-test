@@ -26,6 +26,7 @@ export class HistoryService {
 
   /** 특정 버전의 스냅샷을 반환한다. 버전이 존재하지 않으면 404를 던진다. */
   async getVersionSnapshot(orderId: number, version: number) {
+    await this.ordersService.findOrderById(orderId);
     const snapshot = await this.prisma.purchaseOrderVersion.findUnique({
       where: { orderId_version: { orderId, version } },
     });
@@ -41,6 +42,7 @@ export class HistoryService {
 
   /** 주어진 시점 이전의 가장 최신 스냅샷을 반환한다. timestamp 파싱 실패 시 400, 해당 시점 이전 버전이 없으면 404를 던진다. */
   async getSnapshotAtTimestamp(orderId: number, timestamp: string) {
+    await this.ordersService.findOrderById(orderId);
     const parsed = new Date(timestamp);
     if (isNaN(parsed.getTime())) {
       throw new HttpException(
@@ -70,6 +72,13 @@ export class HistoryService {
     from: number,
     to: number,
   ): Promise<{ diff: { field: string; before: unknown; after: unknown }[] }> {
+    if (from > to) {
+      throw new HttpException(
+        { code: 'INVALID_VERSION_RANGE', message: ErrorCode.INVALID_VERSION_RANGE.message },
+        ErrorCode.INVALID_VERSION_RANGE.status,
+      );
+    }
+
     const [fromSnapshot, toSnapshot] = await Promise.all([
       this.getVersionSnapshot(orderId, from),
       this.getVersionSnapshot(orderId, to),
@@ -81,7 +90,8 @@ export class HistoryService {
       const before = this.serializeField(field, fromSnapshot[field]);
       const after = this.serializeField(field, toSnapshot[field]);
       if (before !== after) {
-        diff.push({ field, before, after });
+        // 비교는 직렬화 후 하되, 응답에는 raw 값을 넣어 클라이언트가 올바른 타입으로 받도록 함
+        diff.push({ field, before: fromSnapshot[field], after: toSnapshot[field] });
       }
     }
 
