@@ -134,7 +134,7 @@
 - **목적**: 발주서 생성·조회·확정 비즈니스 로직을 구현한다. 확정 시 단일 트랜잭션으로 버전1 스냅샷을 생성한다.
 - **브랜치**: `feature/orders`
 - **작업 내용**:
-  - [ ] `src/orders/dto/create-order.dto.ts` 생성
+  - [x] `src/orders/dto/create-order.dto.ts` 생성
     - `productName: string` — `@IsString()`, `@IsNotEmpty()`
     - `quantity: number` — `@IsInt()`, `@Min(1)`
     - `unitPrice: number` — `@IsNumber()`, `@Min(0)`
@@ -143,21 +143,21 @@
     - `buyerId: string` — `@IsString()`, `@IsNotEmpty()`
     - `status?: PurchaseOrderStatus` — `@IsOptional()`, `@IsEnum(PurchaseOrderStatus)`, 허용 값: `DRAFT` | `PENDING`, 기본값 `DRAFT`
       - 생략 시 DRAFT(임시저장), `PENDING` 명시 시 소싱팀 검토 요청 상태로 생성
-  - [ ] `src/orders/orders.service.ts` 생성
+  - [x] `src/orders/orders.service.ts` 생성
     - `createOrder(dto, userId)`: specs 수량 검증 → `prisma.purchaseOrder.create` → 발주서 반환
     - `findOrderById(id)`: 존재하지 않으면 `ORDER_NOT_FOUND(404)` throw
     - `confirmOrder(id, userId)`: 단일 트랜잭션
       - status가 PENDING이 아니면 `INVALID_STATUS_TRANSITION(400)` throw
       - `prisma.$transaction`: status → CONFIRMED, currentVersion → 1, `purchaseOrderVersion.create` (version=1, changeRequestId=null, reason="초기 확정", changedBy=userId), `orderStatusLog.create` (fromStatus=PENDING, toStatus=CONFIRMED, changedBy=userId)
       - 업데이트된 발주서 반환
-  - [ ] `src/orders/orders.module.ts` 생성 — `PrismaModule`, `CommonModule` import
+  - [x] `src/orders/orders.module.ts` 생성 — `PrismaModule`, `CommonModule` import
 
 - **완료 기준**: 각 메서드가 정상 케이스와 예외 케이스 모두 처리.
 - **테스트**:
-  - [ ] `createOrder` 정상 케이스 — 발주서 생성, specs 합계 불일치 400
-  - [ ] `findOrderById` 존재하지 않는 id → 404
-  - [ ] `confirmOrder` 정상 케이스 — 트랜잭션 호출, 버전1 스냅샷 생성 및 `OrderStatusLog` 1행 insert 검증
-  - [ ] `confirmOrder` PENDING 아닌 상태 → 400 INVALID_STATUS_TRANSITION
+  - [x] `createOrder` 정상 케이스 — 발주서 생성, specs 합계 불일치 400
+  - [x] `findOrderById` 존재하지 않는 id → 404
+  - [x] `confirmOrder` 정상 케이스 — 트랜잭션 호출, 버전1 스냅샷 생성 및 `OrderStatusLog` 1행 insert 검증
+  - [x] `confirmOrder` PENDING 아닌 상태 → 400 INVALID_STATUS_TRANSITION
   ```bash
   yarn test --testPathPattern=orders.service
   ```
@@ -166,20 +166,20 @@
 
 - **목적**: 발주서 API 3종을 Controller로 노출하고 Swagger 어노테이션을 추가한다.
 - **작업 내용**:
-  - [ ] `src/orders/orders.controller.ts` 생성
+  - [x] `src/orders/orders.controller.ts` 생성
     - `POST /orders` — `@Roles(Role.BUYER)`, `@HttpCode(201)`, body: `CreateOrderDto`, `X-User-Id` 헤더에서 userId 추출
     - `GET /orders/:id` — 전체 역할 허용 (`@Roles(Role.BUYER, Role.SOURCING, Role.MANUFACTURER)`)
     - `PATCH /orders/:id/confirm` — `@Roles(Role.SOURCING)`, body 없음
-    - 모든 응답 `{ success: true, data: ... }` 래핑
+    - 모든 응답 `{ success: true, data: ... }` 래핑 (전역 TransformInterceptor)
     - `@ApiTags('orders')`, `@ApiHeader` (X-User-Role, X-User-Id) Swagger 어노테이션
-  - [ ] `AppModule`에 `OrdersModule` import
+  - [x] `AppModule`에 `OrdersModule` import (기완료)
 
 - **완료 기준**: Swagger UI에서 3개 엔드포인트 확인, 권한 위반 시 403 반환.
 - **테스트**:
-  - [ ] `POST /orders` BUYER 역할 정상 생성 → 201
-  - [ ] `POST /orders` SOURCING 역할 → 403
-  - [ ] `PATCH /orders/:id/confirm` SOURCING 역할 정상 → 200, 버전1 스냅샷 생성
-  - [ ] `PATCH /orders/:id/confirm` BUYER 역할 → 403
+  - [x] `POST /orders` BUYER 역할 정상 생성 → 201
+  - [ ] `POST /orders` SOURCING 역할 → 403 (E2E Phase 7에서 검증)
+  - [x] `PATCH /orders/:id/confirm` SOURCING 역할 정상 → 200, 버전1 스냅샷 생성
+  - [ ] `PATCH /orders/:id/confirm` BUYER 역할 → 403 (E2E Phase 7에서 검증)
   ```bash
   yarn test --testPathPattern=orders.controller
   ```
