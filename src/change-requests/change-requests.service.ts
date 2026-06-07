@@ -2,7 +2,7 @@ import { HttpException, Injectable, Logger } from '@nestjs/common';
 import { Prisma } from '../generated/prisma/client';
 import { ChangeRequestStatus } from '../common/enums/change-request-status.enum';
 import { PurchaseOrderStatus } from '../common/enums/purchase-order-status.enum';
-import { ErrorCode } from '../common/constants/error-code.const';
+import { businessError } from '../common/exceptions/business.exception';
 import { validateSpecsQuantity } from '../common/helpers/validate-specs-quantity.helper';
 import { PrismaService } from '../prisma/prisma.service';
 import { OrdersService } from '../orders/orders.service';
@@ -27,66 +27,77 @@ export class ChangeRequestsService {
   ) {}
 
   /** 변경요청을 생성한다. 발주서 생성자(buyerId)만 가능하며, 발주서가 CONFIRMED 이상일 때만 허용된다. PENDING 체크와 create를 Serializable 트랜잭션으로 묶어 동시 중복 요청을 방지한다. */
-  async createChangeRequest(orderId: number, dto: CreateChangeRequestDto, userId: string) {
+  async createChangeRequest(
+    orderId: number,
+    dto: CreateChangeRequestDto,
+    userId: string,
+  ) {
     const order = await this.ordersService.findOrderById(orderId);
 
     if (order.buyerId !== userId) {
-      this.logger.warn(`변경요청 생성 불가 — 생성자 아님 orderId=${orderId} buyerId=${order.buyerId} userId=${userId}`);
-      throw new HttpException(
-        { code: 'NOT_ORDER_OWNER', message: ErrorCode.NOT_ORDER_OWNER.message },
-        ErrorCode.NOT_ORDER_OWNER.status,
+      this.logger.warn(
+        `변경요청 생성 불가 — 생성자 아님 orderId=${orderId} buyerId=${order.buyerId} userId=${userId}`,
       );
+      businessError('NOT_ORDER_OWNER');
     }
 
-    if (STATUS_RANK[order.status] < STATUS_RANK[PurchaseOrderStatus.CONFIRMED]) {
-      this.logger.warn(`변경요청 생성 불가 — 확정 전 상태 orderId=${orderId} status=${order.status}`);
-      throw new HttpException(
-        { code: 'ORDER_NOT_CONFIRMED', message: ErrorCode.ORDER_NOT_CONFIRMED.message },
-        ErrorCode.ORDER_NOT_CONFIRMED.status,
+    if (
+      STATUS_RANK[order.status] < STATUS_RANK[PurchaseOrderStatus.CONFIRMED]
+    ) {
+      this.logger.warn(
+        `변경요청 생성 불가 — 확정 전 상태 orderId=${orderId} status=${order.status}`,
       );
+      businessError('ORDER_NOT_CONFIRMED');
     }
 
     if (Object.keys(dto.changes).length === 0) {
-      throw new HttpException(
-        { code: 'CHANGES_REQUIRED', message: ErrorCode.CHANGES_REQUIRED.message },
-        ErrorCode.CHANGES_REQUIRED.status,
-      );
+      businessError('CHANGES_REQUIRED');
     }
 
     if (dto.changes.specs) {
-      validateSpecsQuantity(dto.changes.specs, dto.changes.quantity ?? order.quantity);
+      validateSpecsQuantity(
+        dto.changes.specs,
+        dto.changes.quantity ?? order.quantity,
+      );
     }
 
     // PENDING 체크와 create를 Serializable 트랜잭션으로 묶어 동시 중복 요청 방지
     try {
-      const changeRequest = await this.prisma.$transaction(async (tx) => {
-        const existing = await tx.changeRequest.findFirst({
-          where: { orderId, status: ChangeRequestStatus.PENDING },
-        });
-        if (existing) {
-          this.logger.warn(`변경요청 중복 orderId=${orderId} existingId=${existing.id}`);
-          throw new HttpException(
-            { code: 'CHANGE_REQUEST_ALREADY_PENDING', message: ErrorCode.CHANGE_REQUEST_ALREADY_PENDING.message },
-            ErrorCode.CHANGE_REQUEST_ALREADY_PENDING.status,
-          );
-        }
+      const changeRequest = await this.prisma.$transaction(
+        async (tx) => {
+          const existing = await tx.changeRequest.findFirst({
+            where: { orderId, status: ChangeRequestStatus.PENDING },
+          });
+          if (existing) {
+            this.logger.warn(
+              `변경요청 중복 orderId=${orderId} existingId=${existing.id}`,
+            );
+            businessError('CHANGE_REQUEST_ALREADY_PENDING');
+          }
 
-        return tx.changeRequest.create({
-          data: {
-            orderId,
-            requestedBy: userId,
-            reason: dto.reason,
-            changes: dto.changes as unknown as Prisma.InputJsonValue,
-            status: ChangeRequestStatus.PENDING,
-          },
-        });
-      }, { isolationLevel: 'Serializable' });
+          return tx.changeRequest.create({
+            data: {
+              orderId,
+              requestedBy: userId,
+              reason: dto.reason,
+              changes: dto.changes as unknown as Prisma.InputJsonValue,
+              status: ChangeRequestStatus.PENDING,
+            },
+          });
+        },
+        { isolationLevel: 'Serializable' },
+      );
 
-      this.logger.log(`변경요청 생성 완료 orderId=${orderId} changeRequestId=${changeRequest.id} userId=${userId}`);
+      this.logger.log(
+        `변경요청 생성 완료 orderId=${orderId} changeRequestId=${changeRequest.id} userId=${userId}`,
+      );
       return changeRequest;
     } catch (err) {
       if (err instanceof HttpException) throw err;
-      this.logger.error(`변경요청 생성 트랜잭션 실패 orderId=${orderId} userId=${userId}`, err instanceof Error ? err.stack : err);
+      this.logger.error(
+        `변경요청 생성 트랜잭션 실패 orderId=${orderId} userId=${userId}`,
+        err instanceof Error ? err.stack : err,
+      );
       throw err;
     }
   }
@@ -115,94 +126,100 @@ export class ChangeRequestsService {
       where: { id: requestId, orderId },
     });
     if (!changeRequest) {
-      this.logger.warn(`변경요청 없음 requestId=${requestId} orderId=${orderId}`);
-      throw new HttpException(
-        { code: 'CHANGE_REQUEST_NOT_FOUND', message: ErrorCode.CHANGE_REQUEST_NOT_FOUND.message },
-        ErrorCode.CHANGE_REQUEST_NOT_FOUND.status,
+      this.logger.warn(
+        `변경요청 없음 requestId=${requestId} orderId=${orderId}`,
       );
+      businessError('CHANGE_REQUEST_NOT_FOUND');
     }
 
     if (changeRequest.status !== ChangeRequestStatus.PENDING) {
-      this.logger.warn(`승인 불가 — PENDING 아님 requestId=${requestId} status=${changeRequest.status}`);
-      throw new HttpException(
-        { code: 'CHANGE_REQUEST_NOT_PENDING', message: ErrorCode.CHANGE_REQUEST_NOT_PENDING.message },
-        ErrorCode.CHANGE_REQUEST_NOT_PENDING.status,
+      this.logger.warn(
+        `승인 불가 — PENDING 아님 requestId=${requestId} status=${changeRequest.status}`,
       );
+      businessError('CHANGE_REQUEST_NOT_PENDING');
     }
 
     const order = await this.ordersService.findOrderById(orderId);
 
-    if (STATUS_RANK[order.status] < STATUS_RANK[PurchaseOrderStatus.CONFIRMED]) {
-      this.logger.warn(`승인 불가 — 확정 전 상태 orderId=${orderId} status=${order.status}`);
-      throw new HttpException(
-        { code: 'ORDER_NOT_CONFIRMED', message: ErrorCode.ORDER_NOT_CONFIRMED.message },
-        ErrorCode.ORDER_NOT_CONFIRMED.status,
+    if (
+      STATUS_RANK[order.status] < STATUS_RANK[PurchaseOrderStatus.CONFIRMED]
+    ) {
+      this.logger.warn(
+        `승인 불가 — 확정 전 상태 orderId=${orderId} status=${order.status}`,
       );
+      businessError('ORDER_NOT_CONFIRMED');
     }
 
-    const changes = changeRequest.changes as Record<string, any>;
+    const changes = changeRequest.changes as Record<string, unknown>;
 
-    const mergedProductName = changes.productName ?? order.productName;
-    const mergedQuantity = changes.quantity ?? order.quantity;
+    const mergedProductName =
+      (changes.productName as string) ?? order.productName;
+    const mergedQuantity = (changes.quantity as number) ?? order.quantity;
     const mergedUnitPrice = Number(changes.unitPrice ?? order.unitPrice);
-    const mergedDeliveryDate = changes.deliveryDate ? new Date(changes.deliveryDate) : order.deliveryDate;
+    const mergedDeliveryDate = changes.deliveryDate
+      ? new Date(changes.deliveryDate as string)
+      : order.deliveryDate;
     const mergedSpecs = changes.specs ?? order.specs;
 
     if (changes.specs) {
-      validateSpecsQuantity(mergedSpecs, mergedQuantity);
+      validateSpecsQuantity(
+        mergedSpecs as Parameters<typeof validateSpecsQuantity>[0],
+        mergedQuantity,
+      );
     }
 
     try {
-      const [updatedChangeRequest] = await this.prisma.$transaction(async (tx) => {
-        const updated = await tx.changeRequest.update({
-          where: { id: requestId, status: ChangeRequestStatus.PENDING },
-          data: {
-            status: ChangeRequestStatus.APPROVED,
-            reviewedBy: userId,
-            reviewComment: dto.reviewComment ?? null,
-            reviewedAt: new Date(),
-          },
-        });
+      const [updatedChangeRequest] = await this.prisma.$transaction(
+        async (tx) => {
+          const updated = await tx.changeRequest.update({
+            where: { id: requestId, status: ChangeRequestStatus.PENDING },
+            data: {
+              status: ChangeRequestStatus.APPROVED,
+              reviewedBy: userId,
+              reviewComment: dto.reviewComment ?? null,
+              reviewedAt: new Date(),
+            },
+          });
 
-        const updatedOrder = await tx.purchaseOrder.update({
-          where: { id: orderId },
-          data: {
-            productName: mergedProductName,
-            quantity: mergedQuantity,
-            unitPrice: mergedUnitPrice,
-            specs: mergedSpecs as unknown as Prisma.InputJsonValue,
-            deliveryDate: mergedDeliveryDate,
-            currentVersion: { increment: 1 },
-          },
-        });
+          const updatedOrder = await tx.purchaseOrder.update({
+            where: { id: orderId },
+            data: {
+              productName: mergedProductName,
+              quantity: mergedQuantity,
+              unitPrice: mergedUnitPrice,
+              specs: mergedSpecs as Prisma.InputJsonValue,
+              deliveryDate: mergedDeliveryDate,
+              currentVersion: { increment: 1 },
+            },
+          });
 
-        await tx.purchaseOrderVersion.create({
-          data: {
-            orderId,
-            version: updatedOrder.currentVersion,
-            productName: mergedProductName,
-            quantity: mergedQuantity,
-            unitPrice: mergedUnitPrice,
-            specs: mergedSpecs as unknown as Prisma.InputJsonValue,
-            deliveryDate: mergedDeliveryDate,
-            changedBy: userId,
-            reason: changeRequest.reason,
-            changeRequestId: requestId,
-          },
-        });
+          await tx.purchaseOrderVersion.create({
+            data: {
+              orderId,
+              version: updatedOrder.currentVersion,
+              productName: mergedProductName,
+              quantity: mergedQuantity,
+              unitPrice: mergedUnitPrice,
+              specs: mergedSpecs as Prisma.InputJsonValue,
+              deliveryDate: mergedDeliveryDate,
+              changedBy: userId,
+              reason: changeRequest.reason,
+              changeRequestId: requestId,
+            },
+          });
 
-        return [updated];
-      });
+          return [updated];
+        },
+      );
 
-      this.logger.log(`변경요청 승인 완료 requestId=${requestId} orderId=${orderId} userId=${userId}`);
+      this.logger.log(
+        `변경요청 승인 완료 requestId=${requestId} orderId=${orderId} userId=${userId}`,
+      );
       return updatedChangeRequest;
     } catch (err) {
       if (err instanceof HttpException) throw err;
       if ((err as Prisma.PrismaClientKnownRequestError)?.code === 'P2025') {
-        throw new HttpException(
-          { code: 'CHANGE_REQUEST_NOT_PENDING', message: ErrorCode.CHANGE_REQUEST_NOT_PENDING.message },
-          ErrorCode.CHANGE_REQUEST_NOT_PENDING.status,
-        );
+        businessError('CHANGE_REQUEST_NOT_PENDING');
       }
       this.logger.error(
         `변경요청 승인 트랜잭션 실패 requestId=${requestId} orderId=${orderId} userId=${userId}`,
@@ -223,19 +240,17 @@ export class ChangeRequestsService {
       where: { id: requestId, orderId },
     });
     if (!changeRequest) {
-      this.logger.warn(`변경요청 없음 requestId=${requestId} orderId=${orderId}`);
-      throw new HttpException(
-        { code: 'CHANGE_REQUEST_NOT_FOUND', message: ErrorCode.CHANGE_REQUEST_NOT_FOUND.message },
-        ErrorCode.CHANGE_REQUEST_NOT_FOUND.status,
+      this.logger.warn(
+        `변경요청 없음 requestId=${requestId} orderId=${orderId}`,
       );
+      businessError('CHANGE_REQUEST_NOT_FOUND');
     }
 
     if (changeRequest.status !== ChangeRequestStatus.PENDING) {
-      this.logger.warn(`반려 불가 — PENDING 아님 requestId=${requestId} status=${changeRequest.status}`);
-      throw new HttpException(
-        { code: 'CHANGE_REQUEST_NOT_PENDING', message: ErrorCode.CHANGE_REQUEST_NOT_PENDING.message },
-        ErrorCode.CHANGE_REQUEST_NOT_PENDING.status,
+      this.logger.warn(
+        `반려 불가 — PENDING 아님 requestId=${requestId} status=${changeRequest.status}`,
       );
+      businessError('CHANGE_REQUEST_NOT_PENDING');
     }
 
     const updated = await this.prisma.changeRequest.update({
@@ -248,7 +263,9 @@ export class ChangeRequestsService {
       },
     });
 
-    this.logger.log(`변경요청 반려 완료 requestId=${requestId} orderId=${orderId} userId=${userId}`);
+    this.logger.log(
+      `변경요청 반려 완료 requestId=${requestId} orderId=${orderId} userId=${userId}`,
+    );
     return updated;
   }
 }

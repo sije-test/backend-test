@@ -1,12 +1,7 @@
-import {
-  CanActivate,
-  ExecutionContext,
-  HttpException,
-  Injectable,
-} from '@nestjs/common';
+import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Request } from 'express';
-import { ErrorCode } from '../constants/error-code.const';
+import { businessError } from '../exceptions/business.exception';
 import { ROLES_KEY } from '../decorators/roles.decorator';
 import { Role } from '../enums/role.enum';
 
@@ -28,37 +23,19 @@ export class RolesGuard implements CanActivate {
     const roleHeader = request.headers['x-user-role'];
 
     if (!roleHeader) {
-      throw new HttpException(
-        {
-          code: 'MISSING_ROLE_HEADER',
-          message: ErrorCode.MISSING_ROLE_HEADER.message,
-        },
-        ErrorCode.MISSING_ROLE_HEADER.status,
-      );
+      businessError('MISSING_ROLE_HEADER');
     }
 
     const rawRole = Array.isArray(roleHeader) ? roleHeader[0] : roleHeader;
 
     if (!Object.values(Role).includes(rawRole as Role)) {
-      throw new HttpException(
-        {
-          code: 'INVALID_ROLE',
-          message: ErrorCode.INVALID_ROLE.message,
-        },
-        ErrorCode.INVALID_ROLE.status,
-      );
+      businessError('INVALID_ROLE');
     }
 
     const role = rawRole as Role;
 
     if (!requiredRoles.includes(role)) {
-      throw new HttpException(
-        {
-          code: 'FORBIDDEN_ROLE',
-          message: ErrorCode.FORBIDDEN_ROLE.message,
-        },
-        ErrorCode.FORBIDDEN_ROLE.status,
-      );
+      businessError('FORBIDDEN_ROLE');
     }
 
     const userIdHeader = request.headers['x-user-id'];

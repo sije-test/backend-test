@@ -1,10 +1,16 @@
-import { HttpException, Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { OrdersService } from '../orders/orders.service';
-import { ErrorCode } from '../common/constants/error-code.const';
+import { businessError } from '../common/exceptions/business.exception';
 
 // 변경 가능한 비즈니스 데이터 필드만 비교. changedBy/reason/createdAt 같은 감사 필드는 제외.
-const COMPARE_FIELDS = ['productName', 'quantity', 'unitPrice', 'specs', 'deliveryDate'] as const;
+const COMPARE_FIELDS = [
+  'productName',
+  'quantity',
+  'unitPrice',
+  'specs',
+  'deliveryDate',
+] as const;
 
 @Injectable()
 export class HistoryService {
@@ -31,11 +37,10 @@ export class HistoryService {
       where: { orderId_version: { orderId, version } },
     });
     if (!snapshot) {
-      this.logger.warn(`버전 스냅샷 없음 orderId=${orderId} version=${version}`);
-      throw new HttpException(
-        { code: 'VERSION_NOT_FOUND', message: ErrorCode.VERSION_NOT_FOUND.message },
-        ErrorCode.VERSION_NOT_FOUND.status,
+      this.logger.warn(
+        `버전 스냅샷 없음 orderId=${orderId} version=${version}`,
       );
+      businessError('VERSION_NOT_FOUND');
     }
     return snapshot;
   }
@@ -45,10 +50,7 @@ export class HistoryService {
     await this.ordersService.findOrderById(orderId);
     const parsed = new Date(timestamp);
     if (isNaN(parsed.getTime())) {
-      throw new HttpException(
-        { code: 'INVALID_TIMESTAMP', message: ErrorCode.INVALID_TIMESTAMP.message },
-        ErrorCode.INVALID_TIMESTAMP.status,
-      );
+      businessError('INVALID_TIMESTAMP');
     }
 
     // lte + DESC + findFirst: 해당 시점 이전 스냅샷 중 가장 최신 버전을 1건 반환하는 point-in-time 쿼리
@@ -57,11 +59,10 @@ export class HistoryService {
       orderBy: { createdAt: 'desc' },
     });
     if (!snapshot) {
-      this.logger.warn(`타임스탬프 이전 버전 없음 orderId=${orderId} timestamp=${timestamp}`);
-      throw new HttpException(
-        { code: 'VERSION_NOT_FOUND', message: ErrorCode.VERSION_NOT_FOUND.message },
-        ErrorCode.VERSION_NOT_FOUND.status,
+      this.logger.warn(
+        `타임스탬프 이전 버전 없음 orderId=${orderId} timestamp=${timestamp}`,
       );
+      businessError('VERSION_NOT_FOUND');
     }
     return snapshot;
   }
@@ -73,10 +74,7 @@ export class HistoryService {
     to: number,
   ): Promise<{ diff: { field: string; before: unknown; after: unknown }[] }> {
     if (from > to) {
-      throw new HttpException(
-        { code: 'INVALID_VERSION_RANGE', message: ErrorCode.INVALID_VERSION_RANGE.message },
-        ErrorCode.INVALID_VERSION_RANGE.status,
-      );
+      businessError('INVALID_VERSION_RANGE');
     }
 
     const [fromSnapshot, toSnapshot] = await Promise.all([
@@ -91,7 +89,11 @@ export class HistoryService {
       const after = this.serializeField(field, toSnapshot[field]);
       if (before !== after) {
         // 비교는 직렬화 후 하되, 응답에는 raw 값을 넣어 클라이언트가 올바른 타입으로 받도록 함
-        diff.push({ field, before: fromSnapshot[field], after: toSnapshot[field] });
+        diff.push({
+          field,
+          before: fromSnapshot[field],
+          after: toSnapshot[field],
+        });
       }
     }
 

@@ -1,7 +1,7 @@
 import { HttpException, Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { Prisma } from '../generated/prisma/client';
-import { ErrorCode } from '../common/constants/error-code.const';
+import { businessError } from '../common/exceptions/business.exception';
 import { PurchaseOrderStatus } from '../common/enums/purchase-order-status.enum';
 import { validateSpecsQuantity } from '../common/helpers/validate-specs-quantity.helper';
 import { CreateOrderDto } from './dto/create-order.dto';
@@ -28,10 +28,15 @@ export class OrdersService {
           status: dto.status ?? PurchaseOrderStatus.DRAFT,
         },
       });
-      this.logger.log(`발주서 생성 완료 orderId=${order.id} buyerId=${order.buyerId} status=${order.status}`);
+      this.logger.log(
+        `발주서 생성 완료 orderId=${order.id} buyerId=${order.buyerId} status=${order.status}`,
+      );
       return order;
     } catch (err) {
-      this.logger.error(`발주서 생성 실패 buyerId=${dto.buyerId} productName=${dto.productName}`, err instanceof Error ? err.stack : err);
+      this.logger.error(
+        `발주서 생성 실패 buyerId=${dto.buyerId} productName=${dto.productName}`,
+        err instanceof Error ? err.stack : err,
+      );
       throw err;
     }
   }
@@ -41,10 +46,7 @@ export class OrdersService {
     const order = await this.prisma.purchaseOrder.findUnique({ where: { id } });
     if (!order) {
       this.logger.warn(`발주서 없음 orderId=${id}`);
-      throw new HttpException(
-        { code: 'ORDER_NOT_FOUND', message: ErrorCode.ORDER_NOT_FOUND.message },
-        ErrorCode.ORDER_NOT_FOUND.status,
-      );
+      businessError('ORDER_NOT_FOUND');
     }
     return order;
   }
@@ -57,11 +59,10 @@ export class OrdersService {
     const order = await this.findOrderById(id);
 
     if (order.status !== PurchaseOrderStatus.PENDING) {
-      this.logger.warn(`확정 불가 — 현재 상태 orderId=${id} status=${order.status} userId=${userId}`);
-      throw new HttpException(
-        { code: 'INVALID_STATUS_TRANSITION', message: ErrorCode.INVALID_STATUS_TRANSITION.message },
-        ErrorCode.INVALID_STATUS_TRANSITION.status,
+      this.logger.warn(
+        `확정 불가 — 현재 상태 orderId=${id} status=${order.status} userId=${userId}`,
       );
+      businessError('INVALID_STATUS_TRANSITION');
     }
 
     try {
@@ -105,12 +106,12 @@ export class OrdersService {
     } catch (err) {
       if (err instanceof HttpException) throw err;
       if ((err as Prisma.PrismaClientKnownRequestError)?.code === 'P2025') {
-        throw new HttpException(
-          { code: 'INVALID_STATUS_TRANSITION', message: ErrorCode.INVALID_STATUS_TRANSITION.message },
-          ErrorCode.INVALID_STATUS_TRANSITION.status,
-        );
+        businessError('INVALID_STATUS_TRANSITION');
       }
-      this.logger.error(`발주서 확정 트랜잭션 실패 orderId=${id} userId=${userId}`, err instanceof Error ? err.stack : err);
+      this.logger.error(
+        `발주서 확정 트랜잭션 실패 orderId=${id} userId=${userId}`,
+        err instanceof Error ? err.stack : err,
+      );
       throw err;
     }
   }
