@@ -166,20 +166,20 @@
 
 - **목적**: 발주서 API 3종을 Controller로 노출하고 Swagger 어노테이션을 추가한다.
 - **작업 내용**:
-  - [ ] `src/orders/orders.controller.ts` 생성
+  - [x] `src/orders/orders.controller.ts` 생성
     - `POST /orders` — `@Roles(Role.BUYER)`, `@HttpCode(201)`, body: `CreateOrderDto`, `X-User-Id` 헤더에서 userId 추출
     - `GET /orders/:id` — 전체 역할 허용 (`@Roles(Role.BUYER, Role.SOURCING, Role.MANUFACTURER)`)
     - `PATCH /orders/:id/confirm` — `@Roles(Role.SOURCING)`, body 없음
-    - 모든 응답 `{ success: true, data: ... }` 래핑
+    - 모든 응답 `{ success: true, data: ... }` 래핑 (전역 TransformInterceptor)
     - `@ApiTags('orders')`, `@ApiHeader` (X-User-Role, X-User-Id) Swagger 어노테이션
-  - [ ] `AppModule`에 `OrdersModule` import
+  - [x] `AppModule`에 `OrdersModule` import (기완료)
 
 - **완료 기준**: Swagger UI에서 3개 엔드포인트 확인, 권한 위반 시 403 반환.
 - **테스트**:
-  - [ ] `POST /orders` BUYER 역할 정상 생성 → 201
-  - [ ] `POST /orders` SOURCING 역할 → 403
-  - [ ] `PATCH /orders/:id/confirm` SOURCING 역할 정상 → 200, 버전1 스냅샷 생성
-  - [ ] `PATCH /orders/:id/confirm` BUYER 역할 → 403
+  - [x] `POST /orders` BUYER 역할 정상 생성 → 201
+  - [ ] `POST /orders` SOURCING 역할 → 403 (E2E Phase 7에서 검증)
+  - [x] `PATCH /orders/:id/confirm` SOURCING 역할 정상 → 200, 버전1 스냅샷 생성
+  - [ ] `PATCH /orders/:id/confirm` BUYER 역할 → 403 (E2E Phase 7에서 검증)
   ```bash
   yarn test --testPathPattern=orders.controller
   ```
