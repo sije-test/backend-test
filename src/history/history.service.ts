@@ -2,15 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { OrdersService } from '../orders/orders.service';
 import { businessError } from '../common/exceptions/business.exception';
-
-// 변경 가능한 비즈니스 데이터 필드만 비교. changedBy/reason/createdAt 같은 감사 필드는 제외.
-const COMPARE_FIELDS = [
-  'productName',
-  'quantity',
-  'unitPrice',
-  'specs',
-  'deliveryDate',
-] as const;
+import { ORDER_FIELDS } from '../common/constants/order-fields.const';
 
 @Injectable()
 export class HistoryService {
@@ -83,34 +75,21 @@ export class HistoryService {
     ]);
 
     const diff: { field: string; before: unknown; after: unknown }[] = [];
-    for (const field of COMPARE_FIELDS) {
+    for (const f of ORDER_FIELDS) {
       // Decimal/Date/Json 타입이 섞여 있어 원시값 직접 비교 불가 — 타입별 정규화 후 문자열 비교
-      const before = this.serializeField(field, fromSnapshot[field]);
-      const after = this.serializeField(field, toSnapshot[field]);
+      const before = f.serialize(fromSnapshot[f.key as keyof typeof fromSnapshot]);
+      const after = f.serialize(toSnapshot[f.key as keyof typeof toSnapshot]);
       if (before !== after) {
         // 비교는 직렬화 후 하되, 응답에는 raw 값을 넣어 클라이언트가 올바른 타입으로 받도록 함
         diff.push({
-          field,
-          before: fromSnapshot[field],
-          after: toSnapshot[field],
+          field: f.key,
+          before: fromSnapshot[f.key as keyof typeof fromSnapshot],
+          after: toSnapshot[f.key as keyof typeof toSnapshot],
         });
       }
     }
 
     return { diff };
-  }
-
-  private serializeField(field: string, value: unknown): unknown {
-    if (field === 'unitPrice') {
-      // Prisma.Decimal 인스턴스: toString()으로 trailing zero를 일관 정규화
-      return String(value);
-    }
-    if (field === 'deliveryDate') {
-      // Date 인스턴스를 ISO 문자열로 명시적 정규화
-      return value instanceof Date ? value.toISOString() : String(value);
-    }
-    // productName(string), quantity(number), specs(Json)
-    return JSON.stringify(value);
   }
 
   /** 발주서의 상태 전이 이력을 생성 순서대로 반환한다. 이력이 없으면 빈 배열을 반환한다. */

@@ -4,6 +4,7 @@ import { ChangeRequestStatus } from '../common/enums/change-request-status.enum'
 import { PurchaseOrderStatus } from '../common/enums/purchase-order-status.enum';
 import { businessError } from '../common/exceptions/business.exception';
 import { validateSpecsQuantity } from '../common/helpers/validate-specs-quantity.helper';
+import { mergeChanges, buildVersionData } from '../common/constants/order-fields.const';
 import { PrismaService } from '../prisma/prisma.service';
 import { OrdersService } from '../orders/orders.service';
 import { CreateChangeRequestDto } from './dto/create-change-request.dto';
@@ -113,20 +114,12 @@ export class ChangeRequestsService {
     this.assertOrderConfirmed(order, '승인 불가 — 확정 전 상태');
 
     const changes = changeRequest.changes as Record<string, unknown>;
-
-    const mergedProductName =
-      (changes.productName as string) ?? order.productName;
-    const mergedQuantity = (changes.quantity as number) ?? order.quantity;
-    const mergedUnitPrice = Number(changes.unitPrice ?? order.unitPrice);
-    const mergedDeliveryDate = changes.deliveryDate
-      ? new Date(changes.deliveryDate as string)
-      : order.deliveryDate;
-    const mergedSpecs = changes.specs ?? order.specs;
+    const merged = mergeChanges(order as Record<string, unknown>, changes);
 
     if (changes.specs) {
       validateSpecsQuantity(
-        mergedSpecs as Parameters<typeof validateSpecsQuantity>[0],
-        mergedQuantity,
+        merged.specs as Parameters<typeof validateSpecsQuantity>[0],
+        merged.quantity as number,
       );
     }
 
@@ -146,28 +139,23 @@ export class ChangeRequestsService {
           const updatedOrder = await tx.purchaseOrder.update({
             where: { id: orderId },
             data: {
-              productName: mergedProductName,
-              quantity: mergedQuantity,
-              unitPrice: mergedUnitPrice,
-              specs: mergedSpecs as Prisma.InputJsonValue,
-              deliveryDate: mergedDeliveryDate,
+              productName: merged.productName as string,
+              quantity: merged.quantity as number,
+              unitPrice: merged.unitPrice as number,
+              specs: merged.specs as Prisma.InputJsonValue,
+              deliveryDate: merged.deliveryDate as Date,
               currentVersion: { increment: 1 },
             },
           });
 
           await tx.purchaseOrderVersion.create({
-            data: {
+            data: buildVersionData(merged, {
               orderId,
               version: updatedOrder.currentVersion,
-              productName: mergedProductName,
-              quantity: mergedQuantity,
-              unitPrice: mergedUnitPrice,
-              specs: mergedSpecs as Prisma.InputJsonValue,
-              deliveryDate: mergedDeliveryDate,
               changedBy: userId,
               reason: changeRequest.reason,
               changeRequestId: requestId,
-            },
+            }) as Prisma.PurchaseOrderVersionUncheckedCreateInput,
           });
 
           return [updated];

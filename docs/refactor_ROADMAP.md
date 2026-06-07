@@ -69,7 +69,7 @@
 
 - **목적**: 머지·스냅샷·비교 직렬화가 각기 다른 곳에 하드코딩된 5개 필드 목록을 단일 배열로 통합한다. 새 필드 추가 시 배열 1곳만 수정하면 세 용도가 자동 반영된다.
 - **작업 내용**:
-  - [ ] `src/common/constants/order-fields.const.ts` 생성
+  - [x] `src/common/constants/order-fields.const.ts` 생성
     ```ts
     export interface OrderFieldDescriptor {
       key: 'productName' | 'quantity' | 'unitPrice' | 'specs' | 'deliveryDate';
@@ -87,10 +87,10 @@
       { key: 'deliveryDate', fromChange: v => new Date(v as string), serialize: v => v instanceof Date ? v.toISOString() : String(v) },
     ];
     ```
-  - [ ] `mergeChanges(order, changes)` 헬퍼: `ORDER_FIELDS`를 돌며 머지 값 반환
-  - [ ] `buildVersionData(source, meta)` 헬퍼: `ORDER_FIELDS`의 key로 5필드 추출 + `{version, changedBy, reason, changeRequestId}`
-  - [ ] `HistoryService.serializeField` private 제거 → `ORDER_FIELDS[*].serialize` 사용
-  - [ ] `compareVersions` 루프에서 `ORDER_FIELDS` 사용
+  - [x] `mergeChanges(order, changes)` 헬퍼: `ORDER_FIELDS`를 돌며 머지 값 반환
+  - [x] `buildVersionData(source, meta)` 헬퍼: `ORDER_FIELDS`의 key로 5필드 추출 + `{version, changedBy, reason, changeRequestId}`
+  - [x] `HistoryService.serializeField` private 제거 → `ORDER_FIELDS[*].serialize` 사용
+  - [x] `compareVersions` 루프에서 `ORDER_FIELDS` 사용
 - **주의**: `unitPrice` 타입 — confirm 경로는 `order.unitPrice`(Decimal) 그대로, approve 경로는 `fromChange`(Number 변환) 후 전달. `buildVersionData`는 raw 값을 그대로 받아 두 경로 타입 보존.
 - **영향 테스트**: `history.service.spec.ts` — diff 입출력 동일하므로 무수정 통과 확인
 - **검증**:

@@ -4,6 +4,7 @@ import { Prisma } from '../generated/prisma/client';
 import { businessError } from '../common/exceptions/business.exception';
 import { PurchaseOrderStatus } from '../common/enums/purchase-order-status.enum';
 import { validateSpecsQuantity } from '../common/helpers/validate-specs-quantity.helper';
+import { buildVersionData } from '../common/constants/order-fields.const';
 import { CreateOrderDto } from './dto/create-order.dto';
 
 @Injectable()
@@ -75,18 +76,13 @@ export class OrdersService {
 
         // 최초 확정 버전은 항상 1, changeRequestId는 변경요청 없는 초기 확정이므로 null
         await tx.purchaseOrderVersion.create({
-          data: {
+          data: buildVersionData(order as Record<string, unknown>, {
             orderId: id,
             version: 1,
-            productName: order.productName,
-            quantity: order.quantity,
-            unitPrice: order.unitPrice,
-            specs: order.specs as Prisma.InputJsonValue,
-            deliveryDate: order.deliveryDate,
             changedBy: userId,
             reason: '초기 확정',
             changeRequestId: null,
-          },
+          }) as Prisma.PurchaseOrderVersionUncheckedCreateInput,
         });
 
         await tx.orderStatusLog.create({
