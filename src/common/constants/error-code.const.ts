@@ -15,6 +15,7 @@ export const ErrorCode = {
   MISSING_ROLE_HEADER:            { status: HttpStatus.BAD_REQUEST, message: 'X-User-Role 헤더가 필요합니다.' },
   INVALID_ROLE:                   { status: HttpStatus.BAD_REQUEST, message: '유효하지 않은 역할 값입니다.' },
   INVALID_SPECS_QUANTITY:         { status: HttpStatus.BAD_REQUEST, message: 'specs.sizes 수량 합계가 총 수량과 일치하지 않습니다.' },
+  INVALID_VERSION_RANGE:          { status: HttpStatus.BAD_REQUEST, message: 'from 버전은 to 버전보다 작거나 같아야 합니다.' },
 } as const;
 
 export type ErrorCodeKey = keyof typeof ErrorCode;

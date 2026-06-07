@@ -270,7 +270,7 @@
 - **목적**: 이력 조회 4종(이력 목록 / 특정 버전 / 특정 시점 / 버전 비교) + 상태 변경 이력 조회 비즈니스 로직을 구현한다.
 - **브랜치**: `feature/history`
 - **작업 내용**:
-  - [ ] `src/history/history.service.ts` 생성
+  - [x] `src/history/history.service.ts` 생성
     - `getHistory(orderId)`:
       - 발주서 존재 여부 확인 (ORDER_NOT_FOUND 위임)
       - `purchaseOrderVersion.findMany({ where: { orderId }, orderBy: { createdAt: 'asc' } })`
@@ -294,18 +294,18 @@
 
 - **완료 기준**: 5종 조회가 모두 정확한 데이터를 반환하고, 없는 버전은 404를 반환함.
 - **테스트**:
-  - [ ] `getHistory` 정상 케이스 — 버전 2건 createdAt ASC 정렬
-  - [ ] `getVersionSnapshot` version=2 → 정확한 스냅샷 반환
-  - [ ] `getVersionSnapshot` 존재하지 않는 버전 → 404 VERSION_NOT_FOUND
-  - [ ] `getSnapshotAtTimestamp` 특정 시점 이전 최신 버전 반환
-  - [ ] `getSnapshotAtTimestamp` 해당 시점 이전 버전 없음 → 404
-  - [ ] `getSnapshotAtTimestamp` 잘못된 timestamp 형식 → 400 INVALID_TIMESTAMP
-  - [ ] `compareVersions` v1 vs v3 → diff에 변경된 필드만 포함
-  - [ ] `compareVersions` v1 vs v1 → `diff: []`
-  - [ ] `compareVersions` 없는 버전 포함 → 404 VERSION_NOT_FOUND
-  - [ ] `getStatusHistory` 정상 케이스 — createdAt ASC 정렬, `OrderStatusLog` 행 수 일치
-  - [ ] `getStatusHistory` 이력 0건 → 빈 배열 반환
-  - [ ] `getStatusHistory` 존재하지 않는 발주서 → 404 ORDER_NOT_FOUND
+  - [x] `getHistory` 정상 케이스 — 버전 2건 createdAt ASC 정렬
+  - [x] `getVersionSnapshot` version=2 → 정확한 스냅샷 반환
+  - [x] `getVersionSnapshot` 존재하지 않는 버전 → 404 VERSION_NOT_FOUND
+  - [x] `getSnapshotAtTimestamp` 특정 시점 이전 최신 버전 반환
+  - [x] `getSnapshotAtTimestamp` 해당 시점 이전 버전 없음 → 404
+  - [x] `getSnapshotAtTimestamp` 잘못된 timestamp 형식 → 400 INVALID_TIMESTAMP
+  - [x] `compareVersions` v1 vs v3 → diff에 변경된 필드만 포함
+  - [x] `compareVersions` v1 vs v1 → `diff: []`
+  - [x] `compareVersions` 없는 버전 포함 → 404 VERSION_NOT_FOUND
+  - [x] `getStatusHistory` 정상 케이스 — createdAt ASC 정렬, `OrderStatusLog` 행 수 일치
+  - [x] `getStatusHistory` 이력 0건 → 빈 배열 반환
+  - [x] `getStatusHistory` 존재하지 않는 발주서 → 404 ORDER_NOT_FOUND
   ```bash
   yarn test --testPathPattern=history.service
   ```

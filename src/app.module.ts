@@ -6,6 +6,7 @@ import { CommonModule } from './common/common.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { OrdersModule } from './orders/orders.module';
 import { ChangeRequestsModule } from './change-requests/change-requests.module';
+import { HistoryModule } from './history/history.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { ChangeRequestsModule } from './change-requests/change-requests.module';
     CommonModule,
     OrdersModule,
     ChangeRequestsModule,
+    HistoryModule,
   ],
   controllers: [AppController],
   providers: [AppService],
