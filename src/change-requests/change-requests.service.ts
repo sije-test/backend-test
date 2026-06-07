@@ -1,12 +1,11 @@
 import { HttpException, Injectable, Logger } from '@nestjs/common';
-import { Prisma } from '../generated/prisma/client';
 import { ChangeRequestStatus } from '../common/enums/change-request-status.enum';
 import { PurchaseOrderStatus } from '../common/enums/purchase-order-status.enum';
 import { businessError } from '../common/exceptions/business.exception';
 import { validateSpecsQuantity } from '../common/helpers/validate-specs-quantity.helper';
-import { mergeChanges, buildVersionData } from '../common/constants/order-fields.const';
-import { PrismaService } from '../prisma/prisma.service';
+import { mergeChanges } from '../common/constants/order-fields.const';
 import { OrdersService } from '../orders/orders.service';
+import { ChangeRequestsRepository } from './change-requests.repository';
 import { CreateChangeRequestDto } from './dto/create-change-request.dto';
 import { ReviewChangeRequestDto } from './dto/review-change-request.dto';
 
@@ -23,7 +22,7 @@ export class ChangeRequestsService {
   private readonly logger = new Logger(ChangeRequestsService.name);
 
   constructor(
-    private readonly prisma: PrismaService,
+    private readonly repo: ChangeRequestsRepository,
     private readonly ordersService: OrdersService,
   ) {}
 
@@ -46,33 +45,13 @@ export class ChangeRequestsService {
       );
     }
 
-    // PENDING 체크와 create를 Serializable 트랜잭션으로 묶어 동시 중복 요청 방지
     try {
-      const changeRequest = await this.prisma.$transaction(
-        async (tx) => {
-          const existing = await tx.changeRequest.findFirst({
-            where: { orderId, status: ChangeRequestStatus.PENDING },
-          });
-          if (existing) {
-            this.logger.warn(
-              `변경요청 중복 orderId=${orderId} existingId=${existing.id}`,
-            );
-            businessError('CHANGE_REQUEST_ALREADY_PENDING');
-          }
-
-          return tx.changeRequest.create({
-            data: {
-              orderId,
-              requestedBy: userId,
-              reason: dto.reason,
-              changes: dto.changes as unknown as Prisma.InputJsonValue,
-              status: ChangeRequestStatus.PENDING,
-            },
-          });
-        },
-        { isolationLevel: 'Serializable' },
-      );
-
+      const changeRequest = await this.repo.createPendingWithDuplicateGuard({
+        orderId,
+        requestedBy: userId,
+        reason: dto.reason,
+        changes: dto.changes,
+      });
       this.logger.log(
         `변경요청 생성 완료 orderId=${orderId} changeRequestId=${changeRequest.id} userId=${userId}`,
       );
@@ -90,10 +69,7 @@ export class ChangeRequestsService {
   /** 발주서에 속한 변경요청 목록을 생성일 오름차순으로 반환한다. 없는 발주서면 404를 위임한다. */
   async findChangeRequestsByOrderId(orderId: number) {
     await this.ordersService.findOrderById(orderId);
-    return this.prisma.changeRequest.findMany({
-      where: { orderId },
-      orderBy: { createdAt: 'asc' },
-    });
+    return this.repo.findManyByOrder(orderId);
   }
 
   /**
@@ -124,53 +100,20 @@ export class ChangeRequestsService {
     }
 
     try {
-      const [updatedChangeRequest] = await this.prisma.$transaction(
-        async (tx) => {
-          const updated = await tx.changeRequest.update({
-            where: { id: requestId, status: ChangeRequestStatus.PENDING },
-            data: {
-              status: ChangeRequestStatus.APPROVED,
-              reviewedBy: userId,
-              reviewComment: dto.reviewComment ?? null,
-              reviewedAt: new Date(),
-            },
-          });
-
-          const updatedOrder = await tx.purchaseOrder.update({
-            where: { id: orderId },
-            data: {
-              productName: merged.productName as string,
-              quantity: merged.quantity as number,
-              unitPrice: merged.unitPrice as number,
-              specs: merged.specs as Prisma.InputJsonValue,
-              deliveryDate: merged.deliveryDate as Date,
-              currentVersion: { increment: 1 },
-            },
-          });
-
-          await tx.purchaseOrderVersion.create({
-            data: buildVersionData(merged, {
-              orderId,
-              version: updatedOrder.currentVersion,
-              changedBy: userId,
-              reason: changeRequest.reason,
-              changeRequestId: requestId,
-            }) as Prisma.PurchaseOrderVersionUncheckedCreateInput,
-          });
-
-          return [updated];
-        },
-      );
-
+      const updatedChangeRequest = await this.repo.approveWithVersion({
+        requestId,
+        orderId,
+        merged,
+        userId,
+        reason: changeRequest.reason,
+        reviewComment: dto.reviewComment ?? null,
+      });
       this.logger.log(
         `변경요청 승인 완료 requestId=${requestId} orderId=${orderId} userId=${userId}`,
       );
       return updatedChangeRequest;
     } catch (err) {
       if (err instanceof HttpException) throw err;
-      if ((err as Prisma.PrismaClientKnownRequestError)?.code === 'P2025') {
-        businessError('CHANGE_REQUEST_NOT_PENDING');
-      }
       this.logger.error(
         `변경요청 승인 트랜잭션 실패 requestId=${requestId} orderId=${orderId} userId=${userId}`,
         err instanceof Error ? err.stack : err,
@@ -186,16 +129,11 @@ export class ChangeRequestsService {
     dto: ReviewChangeRequestDto,
     userId: string,
   ) {
-    const changeRequest = await this.loadPendingChangeRequest(requestId, orderId);
+    await this.loadPendingChangeRequest(requestId, orderId);
 
-    const updated = await this.prisma.changeRequest.update({
-      where: { id: requestId },
-      data: {
-        status: ChangeRequestStatus.REJECTED,
-        reviewedBy: userId,
-        reviewComment: dto.reviewComment ?? null,
-        reviewedAt: new Date(),
-      },
+    const updated = await this.repo.reject(requestId, {
+      reviewedBy: userId,
+      reviewComment: dto.reviewComment ?? null,
     });
 
     this.logger.log(
@@ -238,11 +176,9 @@ export class ChangeRequestsService {
     }
   }
 
-  /** 변경요청을 조회하고 PENDING 상태인지 검증한다. 없거나 PENDING이 아니면 각각 404·409를 던진다. */
+  /** 변경요청을 조회하고 PENDING 상태인지 검증한다. 없거나 PENDING이 아니면 각각 404·400을 던진다. */
   private async loadPendingChangeRequest(requestId: number, orderId: number) {
-    const changeRequest = await this.prisma.changeRequest.findFirst({
-      where: { id: requestId, orderId },
-    });
+    const changeRequest = await this.repo.findByIdAndOrder(requestId, orderId);
     if (!changeRequest) {
       this.logger.warn(`변경요청 없음 requestId=${requestId} orderId=${orderId}`);
       businessError('CHANGE_REQUEST_NOT_FOUND');

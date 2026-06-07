@@ -149,20 +149,20 @@
 
 - **목적**: 가장 복잡한 Serializable 트랜잭션·approve 합성 연산을 repository로 캡슐화한다.
 - **작업 내용**:
-  - [ ] `src/change-requests/change-requests.repository.ts` 생성
+  - [x] `src/change-requests/change-requests.repository.ts` 생성
     - `findByIdAndOrder(requestId, orderId)` — `changeRequest.findFirst`
     - `findFirstPendingByOrder(orderId)` — PENDING 중복 체크용
     - `findManyByOrder(orderId)` — `findMany(orderBy: createdAt asc)`
     - `createPendingWithDuplicateGuard(input)` — `Serializable` `$transaction`: findFirst(중복) + create. 중복 시 `CHANGE_REQUEST_ALREADY_PENDING` throw
     - `approveWithVersion(params)` — `$transaction`: `changeRequest.update(guard:PENDING)` + `purchaseOrder.update` + `purchaseOrderVersion.create`(`buildVersionData` 사용) + P2025→`CHANGE_REQUEST_NOT_PENDING` 변환
     - `reject(requestId, reviewData)` — 단순 `changeRequest.update`
-  - [ ] `ChangeRequestsModule.providers`에 `ChangeRequestsRepository` 추가
-  - [ ] `ChangeRequestsService` 생성자: `PrismaService` → `ChangeRequestsRepository`  
+  - [x] `ChangeRequestsModule.providers`에 `ChangeRequestsRepository` 추가
+  - [x] `ChangeRequestsService` 생성자: `PrismaService` → `ChangeRequestsRepository`  
     `mergeChanges` 호출 → `approveWithVersion` 인자로 전달
-  - [ ] `change-requests.service.spec.ts` (534줄) 재작성  
+  - [x] `change-requests.service.spec.ts` (534줄) 재작성  
     `new ChangeRequestsService(mockChangeRequestsRepository, mockOrdersService)`  
     트랜잭션 내부 어서션 → 신규 `change-requests.repository.spec.ts`로 이전
-  - [ ] `change-requests.repository.spec.ts` 신규 생성  
+  - [x] `change-requests.repository.spec.ts` 신규 생성  
     Serializable 격리수준 전달·P2025 변환·머지 결과 version create 검증
 - **주의**: 기존 `$transaction` 두 번째 인자 `{isolationLevel:'Serializable'}` 전달 여부를 repository spec에서 명시 검증 추가
 - **검증**:
