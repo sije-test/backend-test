@@ -242,21 +242,21 @@
 
 - **목적**: 변경요청 API 4종을 Controller로 노출한다.
 - **작업 내용**:
-  - [ ] `src/change-requests/change-requests.controller.ts` 생성
+  - [x] `src/change-requests/change-requests.controller.ts` 생성
     - `POST /orders/:id/change-requests` — `@Roles(Role.BUYER)`, `@HttpCode(201)`
     - `GET /orders/:id/change-requests` — 전체 역할 허용
     - `PATCH /orders/:id/change-requests/:requestId/approve` — `@Roles(Role.SOURCING)`
     - `PATCH /orders/:id/change-requests/:requestId/reject` — `@Roles(Role.SOURCING)`
     - 모든 응답 `{ success: true, data: ... }` 래핑
     - `@ApiTags('change-requests')` Swagger 어노테이션
-  - [ ] `AppModule`에 `ChangeRequestsModule` import
+  - [x] `AppModule`에 `ChangeRequestsModule` import
 
 - **완료 기준**: Swagger UI에서 4개 엔드포인트 확인, BUYER가 approve 요청 시 403 반환.
 - **테스트**:
-  - [ ] `POST /orders/:id/change-requests` BUYER 정상 → 201
-  - [ ] `PATCH .../approve` BUYER 역할 → 403
-  - [ ] `PATCH .../approve` SOURCING 정상 → 200, 응답 status APPROVED
-  - [ ] `PATCH .../reject` SOURCING 정상 → 200, 응답 status REJECTED
+  - [x] `POST /orders/:id/change-requests` BUYER 정상 → 201
+  - [ ] `PATCH .../approve` BUYER 역할 → 403 (E2E Phase 7에서 검증)
+  - [x] `PATCH .../approve` SOURCING 정상 → 200, 응답 status APPROVED
+  - [x] `PATCH .../reject` SOURCING 정상 → 200, 응답 status REJECTED
   ```bash
   yarn test --testPathPattern=change-requests.controller
   ```
