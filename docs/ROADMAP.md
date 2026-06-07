@@ -134,7 +134,7 @@
 - **목적**: 발주서 생성·조회·확정 비즈니스 로직을 구현한다. 확정 시 단일 트랜잭션으로 버전1 스냅샷을 생성한다.
 - **브랜치**: `feature/orders`
 - **작업 내용**:
-  - [ ] `src/orders/dto/create-order.dto.ts` 생성
+  - [x] `src/orders/dto/create-order.dto.ts` 생성
     - `productName: string` — `@IsString()`, `@IsNotEmpty()`
     - `quantity: number` — `@IsInt()`, `@Min(1)`
     - `unitPrice: number` — `@IsNumber()`, `@Min(0)`
@@ -143,21 +143,21 @@
     - `buyerId: string` — `@IsString()`, `@IsNotEmpty()`
     - `status?: PurchaseOrderStatus` — `@IsOptional()`, `@IsEnum(PurchaseOrderStatus)`, 허용 값: `DRAFT` | `PENDING`, 기본값 `DRAFT`
       - 생략 시 DRAFT(임시저장), `PENDING` 명시 시 소싱팀 검토 요청 상태로 생성
-  - [ ] `src/orders/orders.service.ts` 생성
+  - [x] `src/orders/orders.service.ts` 생성
     - `createOrder(dto, userId)`: specs 수량 검증 → `prisma.purchaseOrder.create` → 발주서 반환
     - `findOrderById(id)`: 존재하지 않으면 `ORDER_NOT_FOUND(404)` throw
     - `confirmOrder(id, userId)`: 단일 트랜잭션
       - status가 PENDING이 아니면 `INVALID_STATUS_TRANSITION(400)` throw
       - `prisma.$transaction`: status → CONFIRMED, currentVersion → 1, `purchaseOrderVersion.create` (version=1, changeRequestId=null, reason="초기 확정", changedBy=userId), `orderStatusLog.create` (fromStatus=PENDING, toStatus=CONFIRMED, changedBy=userId)
       - 업데이트된 발주서 반환
-  - [ ] `src/orders/orders.module.ts` 생성 — `PrismaModule`, `CommonModule` import
+  - [x] `src/orders/orders.module.ts` 생성 — `PrismaModule`, `CommonModule` import
 
 - **완료 기준**: 각 메서드가 정상 케이스와 예외 케이스 모두 처리.
 - **테스트**:
-  - [ ] `createOrder` 정상 케이스 — 발주서 생성, specs 합계 불일치 400
-  - [ ] `findOrderById` 존재하지 않는 id → 404
-  - [ ] `confirmOrder` 정상 케이스 — 트랜잭션 호출, 버전1 스냅샷 생성 및 `OrderStatusLog` 1행 insert 검증
-  - [ ] `confirmOrder` PENDING 아닌 상태 → 400 INVALID_STATUS_TRANSITION
+  - [x] `createOrder` 정상 케이스 — 발주서 생성, specs 합계 불일치 400
+  - [x] `findOrderById` 존재하지 않는 id → 404
+  - [x] `confirmOrder` 정상 케이스 — 트랜잭션 호출, 버전1 스냅샷 생성 및 `OrderStatusLog` 1행 insert 검증
+  - [x] `confirmOrder` PENDING 아닌 상태 → 400 INVALID_STATUS_TRANSITION
   ```bash
   yarn test --testPathPattern=orders.service
   ```
