@@ -76,4 +76,56 @@ export class OrdersService {
       throw err;
     }
   }
+
+  /** 발주서를 생산중으로 전이한다. CONFIRMED 상태인 경우에만 허용된다. */
+  async startProduction(id: number, userId: string) {
+    return this.transition(
+      id,
+      PurchaseOrderStatus.CONFIRMED,
+      PurchaseOrderStatus.IN_PRODUCTION,
+      userId,
+    );
+  }
+
+  /** 발주서를 완료로 전이한다. IN_PRODUCTION 상태인 경우에만 허용된다. */
+  async completeOrder(id: number, userId: string) {
+    return this.transition(
+      id,
+      PurchaseOrderStatus.IN_PRODUCTION,
+      PurchaseOrderStatus.COMPLETED,
+      userId,
+    );
+  }
+
+  /** 상태 전이 공통 헬퍼. from 불일치 시 400, 트랜잭션 실패 시 로깅 후 re-throw. */
+  private async transition(
+    id: number,
+    from: PurchaseOrderStatus,
+    to: PurchaseOrderStatus,
+    userId: string,
+  ) {
+    const order = await this.findOrderById(id);
+
+    if (order.status !== from) {
+      this.logger.warn(
+        `상태 전이 불가 — 현재 상태 orderId=${id} status=${order.status} expected=${from} userId=${userId}`,
+      );
+      businessError('INVALID_STATUS_TRANSITION');
+    }
+
+    try {
+      const updated = await this.repo.transitionStatusWithLog(id, from, to, userId);
+      this.logger.log(
+        `상태 전이 완료 orderId=${id} ${from} → ${to} userId=${userId}`,
+      );
+      return updated;
+    } catch (err) {
+      if (err instanceof HttpException) throw err;
+      this.logger.error(
+        `상태 전이 트랜잭션 실패 orderId=${id} ${from} → ${to} userId=${userId}`,
+        err instanceof Error ? err.stack : err,
+      );
+      throw err;
+    }
+  }
 }

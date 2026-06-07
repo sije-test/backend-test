@@ -52,4 +52,24 @@ export class OrdersController {
   confirm(@Param('id', ParseIntPipe) id: number, @Req() req: Request) {
     return this.ordersService.confirmOrder(id, req.userId ?? '');
   }
+
+  @Patch(':id/start-production')
+  @Roles(Role.SOURCING, Role.MANUFACTURER)
+  @ApiOperation({ summary: '발주서 생산 시작 (CONFIRMED → IN_PRODUCTION)' })
+  @ApiResponse({ status: 200, description: '생산 시작 성공' })
+  @ApiResponse({ status: 400, description: '상태 전이 불가' })
+  @ApiResponse({ status: 403, description: '권한 없음' })
+  startProduction(@Param('id', ParseIntPipe) id: number, @Req() req: Request) {
+    return this.ordersService.startProduction(id, req.userId ?? '');
+  }
+
+  @Patch(':id/complete')
+  @Roles(Role.SOURCING, Role.MANUFACTURER)
+  @ApiOperation({ summary: '발주서 완료 (IN_PRODUCTION → COMPLETED)' })
+  @ApiResponse({ status: 200, description: '완료 성공' })
+  @ApiResponse({ status: 400, description: '상태 전이 불가' })
+  @ApiResponse({ status: 403, description: '권한 없음' })
+  complete(@Param('id', ParseIntPipe) id: number, @Req() req: Request) {
+    return this.ordersService.completeOrder(id, req.userId ?? '');
+  }
 }
