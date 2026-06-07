@@ -5,6 +5,7 @@ export const ErrorCode = {
   VERSION_NOT_FOUND:              { status: HttpStatus.NOT_FOUND, message: '해당 버전을 찾을 수 없습니다.' },
   CHANGE_REQUEST_NOT_FOUND:       { status: HttpStatus.NOT_FOUND, message: '변경요청을 찾을 수 없습니다.' },
   FORBIDDEN_ROLE:                 { status: HttpStatus.FORBIDDEN, message: '해당 작업에 대한 권한이 없습니다.' },
+  NOT_ORDER_OWNER:                { status: HttpStatus.FORBIDDEN, message: '본인이 생성한 발주서에만 변경요청을 생성할 수 있습니다.' },
   INVALID_STATUS_TRANSITION:      { status: HttpStatus.BAD_REQUEST, message: '현재 상태에서 허용되지 않는 상태 전이입니다.' },
   ORDER_NOT_CONFIRMED:            { status: HttpStatus.BAD_REQUEST, message: '확정된 발주서에만 변경요청을 생성할 수 있습니다.' },
   CHANGE_REQUEST_ALREADY_PENDING: { status: HttpStatus.CONFLICT, message: '이미 처리 중인 변경요청이 있습니다.' },

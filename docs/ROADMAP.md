@@ -193,12 +193,12 @@
 - **목적**: 변경요청 생성·승인·반려 비즈니스 로직을 구현한다. 승인 시 단일 트랜잭션으로 발주서 업데이트와 스냅샷 생성을 원자적으로 처리한다.
 - **브랜치**: `feature/change-requests`
 - **작업 내용**:
-  - [ ] `src/change-requests/dto/create-change-request.dto.ts` 생성
+  - [x] `src/change-requests/dto/create-change-request.dto.ts` 생성
     - `reason: string` — `@IsString()`, `@IsNotEmpty()`
     - `changes: ChangesDto` — `@ValidateNested()`, `@Type(() => ChangesDto)` (공통 DTO 사용, specs 포함 시 SpecsDto 중첩 자동 검증)
-  - [ ] `src/change-requests/dto/review-change-request.dto.ts` 생성 (approve/reject 공용)
+  - [x] `src/change-requests/dto/review-change-request.dto.ts` 생성 (approve/reject 공용)
     - `reviewComment: string` — `@IsString()`, `@IsOptional()`
-  - [ ] `src/change-requests/change-requests.service.ts` 생성
+  - [x] `src/change-requests/change-requests.service.ts` 생성
     - `createChangeRequest(orderId, dto, userId)`:
       - `findOrderById` 호출 (ORDER_NOT_FOUND 위임)
       - status < CONFIRMED이면 `ORDER_NOT_CONFIRMED(400)` throw
@@ -214,26 +214,26 @@
         1. `changeRequest.update` → status APPROVED, reviewedBy=userId, reviewComment, reviewedAt=now()
         2. `purchaseOrder.update` → changes 필드 반영, currentVersion +1
         3. `purchaseOrderVersion.create` → 버전 스냅샷 insert (changeRequestId=requestId, changedBy=userId, reason=변경요청.reason)
-        4. `orderStatusLog.create` → fromStatus=기존 status, toStatus=변경 후 status, changedBy=userId (상태 전이 발생 시에만 insert)
+        - **주**: 승인 시 발주서 status는 CONFIRMED 유지 → 상태 전이 없음 → `orderStatusLog` 미생성
       - 업데이트된 변경요청 반환
     - `rejectChangeRequest(orderId, requestId, dto, userId)`:
       - 변경요청 조회 — 없으면 `CHANGE_REQUEST_NOT_FOUND(404)`
       - status가 PENDING이 아니면 `CHANGE_REQUEST_NOT_PENDING(400)` throw
       - `changeRequest.update` → status REJECTED, reviewedBy, reviewComment, reviewedAt
       - 업데이트된 변경요청 반환
-  - [ ] `src/change-requests/change-requests.module.ts` 생성
+  - [x] `src/change-requests/change-requests.module.ts` 생성
 
 - **완료 기준**: 승인 트랜잭션이 원자적으로 동작 (한 단계 실패 시 전체 롤백).
 - **테스트**:
-  - [ ] `createChangeRequest` 정상 케이스 → 201
-  - [ ] `createChangeRequest` CONFIRMED 미만 발주서 → 400 ORDER_NOT_CONFIRMED
-  - [ ] `createChangeRequest` PENDING 중복 → 409 CHANGE_REQUEST_ALREADY_PENDING
-  - [ ] `createChangeRequest` `changes: {}` → 400 CHANGES_REQUIRED
-  - [ ] `createChangeRequest` specs 포함 시 sizes 합계 불일치 → 400 INVALID_SPECS_QUANTITY
-  - [ ] `approveChangeRequest` 정상 케이스 — 트랜잭션 4단계 모두 호출, currentVersion +1, 스냅샷 1행 생성, `OrderStatusLog` 1행 insert 검증
-  - [ ] `approveChangeRequest` PENDING 아닌 변경요청 → 400 CHANGE_REQUEST_NOT_PENDING
-  - [ ] `rejectChangeRequest` 정상 케이스 — 발주서 불변 확인
-  - [ ] `rejectChangeRequest` PENDING 아닌 변경요청 → 400 CHANGE_REQUEST_NOT_PENDING
+  - [x] `createChangeRequest` 정상 케이스 → 201
+  - [x] `createChangeRequest` CONFIRMED 미만 발주서 → 400 ORDER_NOT_CONFIRMED
+  - [x] `createChangeRequest` PENDING 중복 → 409 CHANGE_REQUEST_ALREADY_PENDING
+  - [x] `createChangeRequest` `changes: {}` → 400 CHANGES_REQUIRED
+  - [x] `createChangeRequest` specs 포함 시 sizes 합계 불일치 → 400 INVALID_SPECS_QUANTITY
+  - [x] `approveChangeRequest` 정상 케이스 — 트랜잭션 3단계 호출, currentVersion +1, 스냅샷 1행, `OrderStatusLog` 0행 검증
+  - [x] `approveChangeRequest` PENDING 아닌 변경요청 → 400 CHANGE_REQUEST_NOT_PENDING
+  - [x] `rejectChangeRequest` 정상 케이스 — 발주서 불변 확인
+  - [x] `rejectChangeRequest` PENDING 아닌 변경요청 → 400 CHANGE_REQUEST_NOT_PENDING
   ```bash
   yarn test --testPathPattern=change-requests.service
   ```
@@ -242,21 +242,21 @@
 
 - **목적**: 변경요청 API 4종을 Controller로 노출한다.
 - **작업 내용**:
-  - [ ] `src/change-requests/change-requests.controller.ts` 생성
+  - [x] `src/change-requests/change-requests.controller.ts` 생성
     - `POST /orders/:id/change-requests` — `@Roles(Role.BUYER)`, `@HttpCode(201)`
     - `GET /orders/:id/change-requests` — 전체 역할 허용
     - `PATCH /orders/:id/change-requests/:requestId/approve` — `@Roles(Role.SOURCING)`
     - `PATCH /orders/:id/change-requests/:requestId/reject` — `@Roles(Role.SOURCING)`
     - 모든 응답 `{ success: true, data: ... }` 래핑
     - `@ApiTags('change-requests')` Swagger 어노테이션
-  - [ ] `AppModule`에 `ChangeRequestsModule` import
+  - [x] `AppModule`에 `ChangeRequestsModule` import
 
 - **완료 기준**: Swagger UI에서 4개 엔드포인트 확인, BUYER가 approve 요청 시 403 반환.
 - **테스트**:
-  - [ ] `POST /orders/:id/change-requests` BUYER 정상 → 201
-  - [ ] `PATCH .../approve` BUYER 역할 → 403
-  - [ ] `PATCH .../approve` SOURCING 정상 → 200, 응답 status APPROVED
-  - [ ] `PATCH .../reject` SOURCING 정상 → 200, 응답 status REJECTED
+  - [x] `POST /orders/:id/change-requests` BUYER 정상 → 201
+  - [ ] `PATCH .../approve` BUYER 역할 → 403 (E2E Phase 7에서 검증)
+  - [x] `PATCH .../approve` SOURCING 정상 → 200, 응답 status APPROVED
+  - [x] `PATCH .../reject` SOURCING 정상 → 200, 응답 status REJECTED
   ```bash
   yarn test --testPathPattern=change-requests.controller
   ```
