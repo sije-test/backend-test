@@ -1,0 +1,7 @@
+export enum PurchaseOrderStatus {
+  DRAFT = 'DRAFT',
+  PENDING = 'PENDING',
+  CONFIRMED = 'CONFIRMED',
+  IN_PRODUCTION = 'IN_PRODUCTION',
+  COMPLETED = 'COMPLETED',
+}
