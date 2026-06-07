@@ -5,6 +5,7 @@ import { AppService } from './app.service';
 import { CommonModule } from './common/common.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { OrdersModule } from './orders/orders.module';
+import { ChangeRequestsModule } from './change-requests/change-requests.module';
 
 @Module({
   imports: [
@@ -12,6 +13,7 @@ import { OrdersModule } from './orders/orders.module';
     PrismaModule,
     CommonModule,
     OrdersModule,
+    ChangeRequestsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
