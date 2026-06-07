@@ -105,14 +105,14 @@
 
 - **목적**: 가장 단순한 읽기 전용 repository로 패턴을 정립한다.
 - **작업 내용**:
-  - [ ] `src/history/history.repository.ts` 생성 (`@Injectable()` 구체 클래스)
+  - [x] `src/history/history.repository.ts` 생성 (`@Injectable()` 구체 클래스)
     - `findVersionsByOrder(orderId)`
     - `findVersion(orderId, version)`
     - `findLatestVersionBefore(orderId, date)`
     - `findStatusLogsByOrder(orderId)`
-  - [ ] `HistoryModule.providers`에 `HistoryRepository` 추가
-  - [ ] `HistoryService` 생성자: `PrismaService` → `HistoryRepository`
-  - [ ] `history.service.spec.ts` mock 교체: prisma model mock → repository 메서드 mock  
+  - [x] `HistoryModule.providers`에 `HistoryRepository` 추가
+  - [x] `HistoryService` 생성자: `PrismaService` → `HistoryRepository`
+  - [x] `history.service.spec.ts` mock 교체: prisma model mock → repository 메서드 mock  
     `new HistoryService(mockHistoryRepository, mockOrdersService)`
 - **검증**:
   ```bash

@@ -2,7 +2,6 @@ import { HttpException } from '@nestjs/common';
 import { Prisma } from '../generated/prisma/client';
 import { HistoryService } from './history.service';
 
-jest.mock('../prisma/prisma.service');
 
 function makeVersion(overrides: Record<string, any> = {}) {
   return {
@@ -36,20 +35,18 @@ function makeStatusLog(overrides: Record<string, any> = {}) {
 
 describe('HistoryService', () => {
   let service: HistoryService;
-  let mockPrisma: any;
+  let mockHistoryRepository: any;
   let mockOrdersService: any;
 
   beforeEach(() => {
-    mockPrisma = {
-      purchaseOrderVersion: {
-        findMany: jest.fn(),
-        findUnique: jest.fn(),
-        findFirst: jest.fn(),
-      },
-      orderStatusLog: { findMany: jest.fn() },
+    mockHistoryRepository = {
+      findVersionsByOrder: jest.fn(),
+      findVersion: jest.fn(),
+      findLatestVersionBefore: jest.fn(),
+      findStatusLogsByOrder: jest.fn(),
     } as unknown as any;
     mockOrdersService = { findOrderById: jest.fn() };
-    service = new HistoryService(mockPrisma, mockOrdersService);
+    service = new HistoryService(mockHistoryRepository, mockOrdersService);
   });
 
   describe('getHistory', () => {
@@ -57,14 +54,11 @@ describe('HistoryService', () => {
       const v1 = makeVersion({ version: 1, createdAt: new Date('2025-01-01T00:00:00.000Z') });
       const v2 = makeVersion({ version: 2, createdAt: new Date('2025-02-01T00:00:00.000Z') });
       mockOrdersService.findOrderById.mockResolvedValue({ id: 1 });
-      mockPrisma.purchaseOrderVersion.findMany.mockResolvedValue([v1, v2]);
+      mockHistoryRepository.findVersionsByOrder.mockResolvedValue([v1, v2]);
 
       const result = await service.getHistory(1);
 
-      expect(mockPrisma.purchaseOrderVersion.findMany).toHaveBeenCalledWith({
-        where: { orderId: 1 },
-        orderBy: { createdAt: 'asc' },
-      });
+      expect(mockHistoryRepository.findVersionsByOrder).toHaveBeenCalledWith(1);
       expect(result).toHaveLength(2);
       expect(result[0].version).toBe(1);
       expect(result[1].version).toBe(2);
@@ -72,7 +66,7 @@ describe('HistoryService', () => {
 
     it('버전 0건 → 빈 배열을 반환한다', async () => {
       mockOrdersService.findOrderById.mockResolvedValue({ id: 1 });
-      mockPrisma.purchaseOrderVersion.findMany.mockResolvedValue([]);
+      mockHistoryRepository.findVersionsByOrder.mockResolvedValue([]);
 
       const result = await service.getHistory(1);
 
@@ -90,19 +84,17 @@ describe('HistoryService', () => {
     it('version=2 스냅샷을 반환한다', async () => {
       const v2 = makeVersion({ version: 2 });
       mockOrdersService.findOrderById.mockResolvedValue({ id: 1 });
-      mockPrisma.purchaseOrderVersion.findUnique.mockResolvedValue(v2);
+      mockHistoryRepository.findVersion.mockResolvedValue(v2);
 
       const result = await service.getVersionSnapshot(1, 2);
 
-      expect(mockPrisma.purchaseOrderVersion.findUnique).toHaveBeenCalledWith({
-        where: { orderId_version: { orderId: 1, version: 2 } },
-      });
+      expect(mockHistoryRepository.findVersion).toHaveBeenCalledWith(1, 2);
       expect(result).toEqual(v2);
     });
 
     it('없는 버전 → 404 VERSION_NOT_FOUND', async () => {
       mockOrdersService.findOrderById.mockResolvedValue({ id: 1 });
-      mockPrisma.purchaseOrderVersion.findUnique.mockResolvedValue(null);
+      mockHistoryRepository.findVersion.mockResolvedValue(null);
 
       try {
         await service.getVersionSnapshot(1, 99);
@@ -125,20 +117,20 @@ describe('HistoryService', () => {
     it('시점 이전 최신 버전을 반환한다', async () => {
       const v1 = makeVersion({ version: 1, createdAt: new Date('2025-01-01T00:00:00.000Z') });
       mockOrdersService.findOrderById.mockResolvedValue({ id: 1 });
-      mockPrisma.purchaseOrderVersion.findFirst.mockResolvedValue(v1);
+      mockHistoryRepository.findLatestVersionBefore.mockResolvedValue(v1);
 
       const result = await service.getSnapshotAtTimestamp(1, '2025-06-01T00:00:00.000Z');
 
-      expect(mockPrisma.purchaseOrderVersion.findFirst).toHaveBeenCalledWith({
-        where: { orderId: 1, createdAt: { lte: new Date('2025-06-01T00:00:00.000Z') } },
-        orderBy: { createdAt: 'desc' },
-      });
+      expect(mockHistoryRepository.findLatestVersionBefore).toHaveBeenCalledWith(
+        1,
+        new Date('2025-06-01T00:00:00.000Z'),
+      );
       expect(result).toEqual(v1);
     });
 
     it('이전 버전 없음(findFirst→null) → 404 VERSION_NOT_FOUND', async () => {
       mockOrdersService.findOrderById.mockResolvedValue({ id: 1 });
-      mockPrisma.purchaseOrderVersion.findFirst.mockResolvedValue(null);
+      mockHistoryRepository.findLatestVersionBefore.mockResolvedValue(null);
 
       try {
         await service.getSnapshotAtTimestamp(1, '2020-01-01T00:00:00.000Z');
@@ -172,7 +164,7 @@ describe('HistoryService', () => {
     it('v1 vs v3 — productName 다르면 diff에 해당 필드만 포함된다', async () => {
       const v1 = makeVersion({ version: 1, productName: '티셔츠' });
       const v3 = makeVersion({ version: 3, productName: '후드티' });
-      mockPrisma.purchaseOrderVersion.findUnique
+      mockHistoryRepository.findVersion
         .mockResolvedValueOnce(v1)
         .mockResolvedValueOnce(v3);
 
@@ -187,7 +179,7 @@ describe('HistoryService', () => {
     it('v1 vs v1 동일 버전 — diff: []이며 findOrderById가 두 번 호출된다 (Promise.all 병렬 처리)', async () => {
       const v1 = makeVersion({ version: 1 });
       mockOrdersService.findOrderById.mockResolvedValue({ id: 1 });
-      mockPrisma.purchaseOrderVersion.findUnique
+      mockHistoryRepository.findVersion
         .mockResolvedValueOnce(v1)
         .mockResolvedValueOnce(v1);
 
@@ -206,11 +198,11 @@ describe('HistoryService', () => {
         expect(ex.getStatus()).toBe(400);
         expect((ex.getResponse() as any).code).toBe('INVALID_VERSION_RANGE');
       }
-      expect(mockPrisma.purchaseOrderVersion.findUnique).not.toHaveBeenCalled();
+      expect(mockHistoryRepository.findVersion).not.toHaveBeenCalled();
     });
 
     it('없는 버전 포함 → 404 VERSION_NOT_FOUND', async () => {
-      mockPrisma.purchaseOrderVersion.findUnique.mockResolvedValue(null);
+      mockHistoryRepository.findVersion.mockResolvedValue(null);
 
       try {
         await service.compareVersions(1, 1, 99);
@@ -225,7 +217,7 @@ describe('HistoryService', () => {
     it('quantity 다르면 diff에 포함된다', async () => {
       const v1 = makeVersion({ version: 1, quantity: 100 });
       const v2 = makeVersion({ version: 2, quantity: 200 });
-      mockPrisma.purchaseOrderVersion.findUnique
+      mockHistoryRepository.findVersion
         .mockResolvedValueOnce(v1)
         .mockResolvedValueOnce(v2);
 
@@ -240,7 +232,7 @@ describe('HistoryService', () => {
     it('unitPrice 다르면 diff에 포함된다 (Decimal 인스턴스)', async () => {
       const v1 = makeVersion({ version: 1, unitPrice: new Prisma.Decimal('15000.00') });
       const v2 = makeVersion({ version: 2, unitPrice: new Prisma.Decimal('20000.00') });
-      mockPrisma.purchaseOrderVersion.findUnique
+      mockHistoryRepository.findVersion
         .mockResolvedValueOnce(v1)
         .mockResolvedValueOnce(v2);
 
@@ -257,7 +249,7 @@ describe('HistoryService', () => {
       const specsB = { color: '검정', sizes: [{ size: 'M', quantity: 100 }] };
       const v1 = makeVersion({ version: 1, specs: specsA });
       const v2 = makeVersion({ version: 2, specs: specsB });
-      mockPrisma.purchaseOrderVersion.findUnique
+      mockHistoryRepository.findVersion
         .mockResolvedValueOnce(v1)
         .mockResolvedValueOnce(v2);
 
@@ -287,7 +279,7 @@ describe('HistoryService', () => {
         deliveryDate: new Date('2025-09-30T00:00:00.000Z'),
       });
       mockOrdersService.findOrderById.mockResolvedValue({ id: 1 });
-      mockPrisma.purchaseOrderVersion.findUnique
+      mockHistoryRepository.findVersion
         .mockResolvedValueOnce(v1)
         .mockResolvedValueOnce(v2);
 
@@ -303,7 +295,7 @@ describe('HistoryService', () => {
       const dateB = new Date('2025-06-30T00:00:00.000Z');
       const v1 = makeVersion({ version: 1, deliveryDate: dateA });
       const v2 = makeVersion({ version: 2, deliveryDate: dateB });
-      mockPrisma.purchaseOrderVersion.findUnique
+      mockHistoryRepository.findVersion
         .mockResolvedValueOnce(v1)
         .mockResolvedValueOnce(v2);
 
@@ -321,20 +313,17 @@ describe('HistoryService', () => {
       const log1 = makeStatusLog({ id: 1, createdAt: new Date('2025-01-01T00:00:00.000Z') });
       const log2 = makeStatusLog({ id: 2, fromStatus: 'CONFIRMED', toStatus: 'IN_PRODUCTION', createdAt: new Date('2025-02-01T00:00:00.000Z') });
       mockOrdersService.findOrderById.mockResolvedValue({ id: 1 });
-      mockPrisma.orderStatusLog.findMany.mockResolvedValue([log1, log2]);
+      mockHistoryRepository.findStatusLogsByOrder.mockResolvedValue([log1, log2]);
 
       const result = await service.getStatusHistory(1);
 
-      expect(mockPrisma.orderStatusLog.findMany).toHaveBeenCalledWith({
-        where: { orderId: 1 },
-        orderBy: { createdAt: 'asc' },
-      });
+      expect(mockHistoryRepository.findStatusLogsByOrder).toHaveBeenCalledWith(1);
       expect(result).toHaveLength(2);
     });
 
     it('상태 로그 0건 → 빈 배열 반환', async () => {
       mockOrdersService.findOrderById.mockResolvedValue({ id: 1 });
-      mockPrisma.orderStatusLog.findMany.mockResolvedValue([]);
+      mockHistoryRepository.findStatusLogsByOrder.mockResolvedValue([]);
 
       const result = await service.getStatusHistory(1);
 
