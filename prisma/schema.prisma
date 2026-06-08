@@ -61,7 +61,7 @@ model PurchaseOrderVersion {
   changeRequest ChangeRequest? @relation(fields: [changeRequestId], references: [id], onDelete: Restrict)
 
   @@unique([orderId, version])
-  @@index([orderId, createdAt, version])
+  @@index([orderId, createdAt])
   @@map("purchase_order_versions")
 }
 

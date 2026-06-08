@@ -30,7 +30,7 @@ CREATE TABLE `purchase_order_versions` (
     `change_request_id` INTEGER NULL,
     `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
 
-    INDEX `purchase_order_versions_order_id_created_at_version_idx`(`order_id`, `created_at`, `version`),
+    INDEX `purchase_order_versions_order_id_created_at_version_idx`(`order_id`, `created_at`),
     UNIQUE INDEX `purchase_order_versions_order_id_version_key`(`order_id`, `version`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
