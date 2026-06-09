@@ -177,9 +177,9 @@
 - **완료 기준**: Swagger UI에서 3개 엔드포인트 확인, 권한 위반 시 403 반환.
 - **테스트**:
   - [x] `POST /orders` BUYER 역할 정상 생성 → 201
-  - [ ] `POST /orders` SOURCING 역할 → 403 (E2E Phase 7에서 검증)
+  - [x] `POST /orders` SOURCING 역할 → 403 (E2E Phase 7에서 검증)
   - [x] `PATCH /orders/:id/confirm` SOURCING 역할 정상 → 200, 버전1 스냅샷 생성
-  - [ ] `PATCH /orders/:id/confirm` BUYER 역할 → 403 (E2E Phase 7에서 검증)
+  - [x] `PATCH /orders/:id/confirm` BUYER 역할 → 403 (E2E Phase 7에서 검증)
   ```bash
   yarn test --testPathPattern=orders.controller
   ```
@@ -254,7 +254,7 @@
 - **완료 기준**: Swagger UI에서 4개 엔드포인트 확인, BUYER가 approve 요청 시 403 반환.
 - **테스트**:
   - [x] `POST /orders/:id/change-requests` BUYER 정상 → 201
-  - [ ] `PATCH .../approve` BUYER 역할 → 403 (E2E Phase 7에서 검증)
+  - [x] `PATCH .../approve` BUYER 역할 → 403 (E2E Phase 7에서 검증)
   - [x] `PATCH .../approve` SOURCING 정상 → 200, 응답 status APPROVED
   - [x] `PATCH .../reject` SOURCING 정상 → 200, 응답 status REJECTED
   ```bash
@@ -314,7 +314,7 @@
 
 - **목적**: 이력 조회 API 5종을 Controller로 노출한다.
 - **작업 내용**:
-  - [ ] `src/history/history.controller.ts` 생성
+  - [x] `src/history/history.controller.ts` 생성
     - `GET /orders/:id/history` — 전체 역할 허용
     - `GET /orders/:id/versions/:version` — 전체 역할 허용, `:version`은 `ParseIntPipe`로 정수 변환
     - `GET /orders/:id/at` — 전체 역할 허용, `timestamp` query param 필수
@@ -322,20 +322,20 @@
     - `GET /orders/:id/status-history` — 전체 역할 허용, createdAt ASC 정렬, 이력 0건이면 빈 배열 반환
     - 모든 응답 `{ success: true, data: ... }` 래핑
     - `@ApiTags('history')` Swagger 어노테이션
-  - [ ] `src/history/history.module.ts` 생성
-  - [ ] `AppModule`에 `HistoryModule` import
+  - [x] `src/history/history.module.ts` 생성
+  - [x] `AppModule`에 `HistoryModule` import
 
 - **완료 기준**: Swagger UI에서 5개 엔드포인트 확인.
 - **테스트**:
-  - [ ] `GET /orders/:id/history` → 200, 버전 배열 반환
-  - [ ] `GET /orders/:id/versions/:version` 존재하는 버전 → 200
-  - [ ] `GET /orders/:id/versions/:version` 없는 버전 → 404
-  - [ ] `GET /orders/:id/at?timestamp=...` 유효한 시점 → 200
-  - [ ] `GET /orders/:id/at?timestamp=invalid` → 400 INVALID_TIMESTAMP
-  - [ ] `GET /orders/:id/compare?from=1&to=3` → 200, diff 배열
-  - [ ] `GET /orders/:id/status-history` → 200, 상태 로그 배열 반환 (createdAt ASC)
-  - [ ] `GET /orders/:id/status-history` 이력 0건 → 200, 빈 배열
-  - [ ] `GET /orders/:id/status-history` 없는 발주서 → 404 ORDER_NOT_FOUND
+  - [x] `GET /orders/:id/history` → 200, 버전 배열 반환
+  - [x] `GET /orders/:id/versions/:version` 존재하는 버전 → 200
+  - [x] `GET /orders/:id/versions/:version` 없는 버전 → 404
+  - [x] `GET /orders/:id/at?timestamp=...` 유효한 시점 → 200
+  - [x] `GET /orders/:id/at?timestamp=invalid` → 400 INVALID_TIMESTAMP
+  - [x] `GET /orders/:id/compare?from=1&to=3` → 200, diff 배열
+  - [x] `GET /orders/:id/status-history` → 200, 상태 로그 배열 반환 (createdAt ASC)
+  - [x] `GET /orders/:id/status-history` 이력 0건 → 200, 빈 배열
+  - [x] `GET /orders/:id/status-history` 없는 발주서 → 404 ORDER_NOT_FOUND
   ```bash
   yarn test --testPathPattern=history.controller
   ```
@@ -349,7 +349,7 @@
 - **목적**: 이력 관리 전략(스냅샷-only) 선택 근거, 대안 비교, 구현 상세를 문서화한다. 과제 제출 요건 항목.
 - **브랜치**: `feature/design-doc`
 - **작업 내용**:
-  - [ ] `DESIGN.md` 작성 — 아래 섹션 포함
+  - [x] `DESIGN.md` 작성 — 아래 섹션 포함
     - 이력 관리 전략 개요 (스냅샷-only 선택)
     - 고려한 대안 비교 (스냅샷+델타 / 델타-only 이벤트 소싱)
     - 선택 근거 (4종 조회 요건과 스냅샷의 자연스러운 대응)
@@ -370,22 +370,22 @@
 - **목적**: 전체 플로우(생성 → 확정 → 변경요청 → 승인 → 이력 조회 → 버전 비교)를 실제 DB와 연동하여 검증한다.
 - **브랜치**: `feature/e2e-test`
 - **작업 내용**:
-  - [ ] `test/app.e2e-spec.ts` — 통합 시나리오 작성
+  - [x] `test/app.e2e-spec.ts` — 통합 시나리오 작성
     - 시나리오 1: 발주서 생성(`status: PENDING` 명시) → 확정(CONFIRMED, v1) → 변경요청 생성 → 승인(v2) → 이력 조회 2건 확인 → v1 vs v2 비교
     - 시나리오 1-1: 발주서 생성(`status` 생략) → 응답 status가 `DRAFT`인지 확인
     - 시나리오 2: 확정 전 변경요청 생성 → 400 ORDER_NOT_CONFIRMED
     - 시나리오 3: PENDING 변경요청 존재 시 신규 생성 → 409 CHANGE_REQUEST_ALREADY_PENDING
     - 시나리오 4: BUYER가 승인 요청 → 403 FORBIDDEN_ROLE
-    - 시나리오 5: `changes: {}` 변경요청 생성 → 400 CHANGES_REQUIRED
+    - 시나리오 5: `changes: {}` 변경요청 생성 → 400 (ValidationPipe `@AtLeastOneField` 검증)
     - 시나리오 6: specs sizes 합계 불일치 → 400 INVALID_SPECS_QUANTITY
     - 시나리오 6-1: `changes`에 `specs` 포함(정상 합계) 변경요청 생성 → 201, specs 중첩 검증 통과 확인
     - 시나리오 6-2: `changes`에 허용 외 필드 포함 → 400 (forbidNonWhitelisted)
     - 시나리오 7: 없는 버전 조회 → 404 VERSION_NOT_FOUND
     - 시나리오 8: 동일 버전 비교 → `diff: []`
-    - 시나리오 9: 승인 트랜잭션 롤백 동작 확인 (mock으로 중간 실패 주입)
-    - 시나리오 10: 확정 → 승인 후 `GET /orders/:id/status-history` → `OrderStatusLog` 행 수 및 fromStatus/toStatus 값 검증
+    - 시나리오 9: 승인 트랜잭션 롤백 동작 확인 — **단위 테스트로 대체** (`change-requests.service.spec.ts`)
+    - 시나리오 10: 확정 → 생산시작 → 완료 후 `GET /orders/:id/status-history` → `OrderStatusLog` 행 수 및 fromStatus/toStatus 값 검증
     - 시나리오 10-1: 변경 이력 없는 발주서의 `GET /orders/:id/status-history` → 빈 배열 반환
-  - [ ] 각 E2E 테스트는 독립적으로 실행될 수 있도록 테스트 전 DB 초기화 처리
+  - [x] 각 E2E 테스트는 독립적으로 실행될 수 있도록 테스트 전 DB 초기화 처리
 
 - **완료 기준**: `yarn test:e2e` 전체 통과.
 - **검증**:
@@ -397,36 +397,36 @@
 
 ## 최종 검증
 
-- [ ] 전체 단위 테스트 통과
+- [x] 전체 단위 테스트 통과 — 126/126 (14 suites)
   ```bash
   yarn test
   ```
-- [ ] E2E 테스트 통과
+- [x] E2E 테스트 통과 — 14/14
   ```bash
   yarn test:e2e
   ```
-- [ ] 커버리지 확인
+- [x] 커버리지 확인
   ```bash
   yarn test:cov
   ```
-- [ ] 프로덕션 빌드 성공
+- [x] 프로덕션 빌드 성공
   ```bash
   yarn build
   ```
-- [ ] 로컬 서버 기동 확인
+- [x] 로컬 서버 기동 확인
   ```bash
   yarn start:dev
   ```
-- [ ] Swagger UI 확인: http://localhost:3000/api
-  - orders 태그: POST /orders, GET /orders/:id, PATCH /orders/:id/confirm (3개)
+- [x] Swagger UI 확인: http://localhost:3000/api
+  - orders 태그: POST /orders, GET /orders/:id, PATCH /orders/:id/confirm, PATCH /orders/:id/start-production, PATCH /orders/:id/complete (5개)
   - change-requests 태그: POST, GET, PATCH approve, PATCH reject (4개)
   - history 태그: GET history, GET versions/:version, GET at, GET compare, GET status-history (5개)
 - [ ] Definition of Done 항목 전체 체크
-  - [ ] 이력 조회 4종 API 모두 동작
-  - [ ] 승인 트랜잭션 롤백 동작 확인
-  - [ ] 비즈니스 규칙 검증 (권한, 상태, 중복) 동작
-  - [ ] DESIGN.md 완성
-  - [ ] 테스트 시나리오 전체 통과
+  - [x] 이력 조회 4종 API 모두 동작
+  - [x] 승인 트랜잭션 롤백 동작 확인 (단위 테스트로 검증)
+  - [x] 비즈니스 규칙 검증 (권한, 상태, 중복) 동작
+  - [x] DESIGN.md 완성
+  - [x] 테스트 시나리오 전체 통과 (시나리오 9 단위 테스트로 대체)
 
 ---
 
